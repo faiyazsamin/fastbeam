@@ -223,19 +223,37 @@
     height: 32px;
   }
 
+  /* Content-height row: the pulse and the pairing panel share one band under the header instead of
+     the pulse floating in the middle of a tall viewport while the panel hugs the top. */
   .home {
+    flex: 0 0 auto;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: stretch;
     gap: 32px;
-    margin-top: 32px;
+    margin-top: clamp(32px, 7vh, 96px);
   }
 
   .home-main {
     flex: 999 1 560px;
     min-width: 0;
-    min-height: 520px;
-    padding: 0;
+    min-height: 0;
+    padding: 8px 0;
+    gap: 24px;
+  }
+
+  .pulse {
+    width: 220px;
+    height: 220px;
+  }
+
+  .pulse-self {
+    width: 76px;
+    height: 76px;
+  }
+
+  .home-hint {
+    max-width: 360px;
   }
 
   .name-btn,
