@@ -20,6 +20,13 @@ export interface Peer {
   /** Live links to this device (one per room it shares with us); the first is the primary. */
   links: PeerLink[]
   lastSeen: number
+  /**
+   * False while we have not heard from the device recently or its last link closed. Offline peers stay
+   * listed (greyed, "Reconnecting…") for a grace period so a Wi‑Fi blip never wipes the screen.
+   */
+  online: boolean
+  /** When the last link closed; removal happens PEER_GRACE_MS later unless a new link arrives. */
+  goneAt: number | null
 }
 
 export const peers = signal<ReadonlyMap<string, Peer>>(new Map())
@@ -36,7 +43,12 @@ export function getPeer(deviceId: string): Peer | undefined {
 }
 
 export function primaryLink(peer: Peer): PeerLink | undefined {
-  return peer.links.find((l) => l.open) ?? peer.links[0]
+  return peer.links.find((l) => l.open && l.health === 'open') ?? peer.links.find((l) => l.open) ?? peer.links[0]
+}
+
+/** Can we send right now? */
+export function isReachable(peer: Peer): boolean {
+  return peer.online && peer.links.some((l) => l.open)
 }
 
 export function setPeer(peer: Peer): void {

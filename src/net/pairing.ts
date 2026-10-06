@@ -27,7 +27,7 @@ import {
   verifyAuthMac,
 } from './pairAuth'
 import { createPeerLink, type ControlMessage, type PeerLink } from './peerLink'
-import { attachPeer, helloMessage, isHello, waitForControl, type HelloMessage } from './session'
+import { attachPeer, helloMessage, isHello, sendUntil, waitForControl, type HelloMessage } from './session'
 import { trysteroSignaling, type RoomHandle } from './signaling'
 import { suggestPassword } from './wordlist'
 
@@ -160,10 +160,11 @@ async function hostIntro(room: HostRoom, link: PeerLink): Promise<void> {
     const fps = link.fingerprints()
     if (!fps) throw new Error('no fingerprints')
     const nH = randomNonce()
-    link.sendControl({ type: 'auth-required', nH: b64url(nH), name: helloMessage().name })
+    const firstProof = waitForControl(link, CODE_TTL_MS, (m) => m.type === 'auth-proof')
+    sendUntil(link, { type: 'auth-required', nH: b64url(nH), name: helloMessage().name }, firstProof)
 
-    for (;;) {
-      const msg = await waitForControl(link, CODE_TTL_MS, (m) => m.type === 'auth-proof')
+    for (let attempt = 0; ; attempt++) {
+      const msg = attempt === 0 ? await firstProof : await waitForControl(link, CODE_TTL_MS, (m) => m.type === 'auth-proof')
       const nJ = typeof msg.nJ === 'string' ? fromB64url(msg.nJ) : null
       const mac = typeof msg.mac === 'string' ? fromB64url(msg.mac) : null
       // One attempt per 2 s: hold the verdict rather than failing an honest quick retry.
@@ -191,7 +192,7 @@ async function hostIntro(room: HostRoom, link: PeerLink): Promise<void> {
   }
 
   const theirs = waitForControl(link, PEER_TIMEOUT_MS, isHello)
-  link.sendControl(helloMessage())
+  sendUntil(link, helloMessage(), theirs)
   const hello = (await theirs) as HelloMessage
   const peer = await attachPeer(link, hello, { paired: true, passwordVerified })
   flashPeer(peer.deviceId)

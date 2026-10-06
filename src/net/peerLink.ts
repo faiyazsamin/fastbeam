@@ -1,4 +1,5 @@
-import { BUFFER_LOW, CHUNK_SIZE, CHUNK_HEADER } from '../config'
+import { BUFFER_LOW, CHUNK_SIZE, CHUNK_HEADER, DISCONNECT_MASK_MS, ICE_RESTART_AFTER_MS } from '../config'
+import { realStates } from './patientPc'
 
 /** Dedicated, negotiated channel beside Trystero's own "data" channel. Both sides create it with the same id. */
 const CHANNEL_ID = 42
@@ -14,19 +15,26 @@ export interface Fingerprints {
   remote: string
 }
 
+export type LinkHealth = 'open' | 'degraded' | 'closed'
+
 export interface PeerLink {
   readonly pc: RTCPeerConnection
   /** Resolves when the channel is open; rejects if it closes first. */
   readonly ready: Promise<void>
   readonly open: boolean
+  /** 'degraded' while ICE is disconnected and a restart is being attempted. */
+  readonly health: LinkHealth
   readonly bufferedAmount: number
   /** Largest safe chunk payload for this connection. */
   readonly chunkSize: number
+  /** When true this side issues ICE restarts; set by the session once both device IDs are known. */
+  restartsIce: boolean
   sendControl(msg: ControlMessage): void
   sendChunk(frame: ArrayBuffer): void
   onControl: ((msg: ControlMessage) => void) | null
   onChunk: ((frame: ArrayBuffer) => void) | null
   onBufferedAmountLow: (() => void) | null
+  onHealth: ((health: LinkHealth) => void) | null
   onClose: (() => void) | null
   fingerprints(): Fingerprints | null
   close(): void
@@ -44,6 +52,7 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
   dc.bufferedAmountLowThreshold = BUFFER_LOW
 
   let closed = false
+  let health: LinkHealth = 'open'
   let resolveReady: (() => void) | undefined
   let rejectReady: ((e: Error) => void) | undefined
   const ready = new Promise<void>((resolve, reject) => {
@@ -52,11 +61,16 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
   })
   // Avoid unhandled-rejection noise when nobody awaits a link that never opened.
   ready.catch(() => {})
+
   const link: PeerLink = {
     pc,
     ready,
+    restartsIce: false,
     get open() {
       return dc.readyState === 'open'
+    },
+    get health() {
+      return closed ? 'closed' : health
     },
     get bufferedAmount() {
       return dc.bufferedAmount
@@ -68,7 +82,11 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
     },
     sendControl(msg) {
       if (dc.readyState !== 'open') return
-      dc.send(JSON.stringify(msg))
+      try {
+        dc.send(JSON.stringify(msg))
+      } catch {
+        /* channel closing under us */
+      }
     },
     sendChunk(frame) {
       if (dc.readyState !== 'open') throw new Error('link closed')
@@ -77,6 +95,7 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
     onControl: null,
     onChunk: null,
     onBufferedAmountLow: null,
+    onHealth: null,
     onClose: null,
     fingerprints() {
       const local = sdpFingerprint(pc.localDescription?.sdp)
@@ -86,6 +105,7 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
     close() {
       if (closed) return
       closed = true
+      clearIceTimers()
       try {
         dc.close()
       } catch {
@@ -93,6 +113,12 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
       }
       link.onClose?.()
     },
+  }
+
+  const setHealth = (h: LinkHealth) => {
+    if (closed || health === h) return
+    health = h
+    link.onHealth?.(h)
   }
 
   if (dc.readyState === 'open') resolveReady?.()
@@ -114,6 +140,7 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
   dc.onbufferedamountlow = () => link.onBufferedAmountLow?.()
   const onGone = () => {
     rejectReady?.(new Error('link closed'))
+    clearIceTimers()
     if (!closed) {
       closed = true
       link.onClose?.()
@@ -123,9 +150,55 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
   dc.onerror = () => {
     if (dc.readyState === 'closed' || dc.readyState === 'closing') onGone()
   }
-  pc.addEventListener('connectionstatechange', () => {
-    if (pc.connectionState === 'failed' || pc.connectionState === 'closed') onGone()
-  })
+
+  // ---- ICE babysitting: restart on a lingering "disconnected", give up only after the mask window ----
+  let restartTimer = 0
+  let giveUpTimer = 0
+  const clearIceTimers = () => {
+    window.clearTimeout(restartTimer)
+    window.clearTimeout(giveUpTimer)
+    restartTimer = 0
+    giveUpTimer = 0
+  }
+  const onIceChange = () => {
+    const { connection, ice } = realStates(pc)
+    if (connection === 'failed' || connection === 'closed' || ice === 'failed' || ice === 'closed') {
+      onGone()
+      return
+    }
+    if (connection === 'disconnected' || ice === 'disconnected') {
+      setHealth('degraded')
+      if (!restartTimer) {
+        restartTimer = window.setTimeout(() => {
+          restartTimer = 0
+          const now = realStates(pc)
+          if (closed || (now.connection !== 'disconnected' && now.ice !== 'disconnected')) return
+          if (link.restartsIce && typeof pc.restartIce === 'function') {
+            try {
+              // Trystero's negotiationneeded handler ships the restart offer through the relays.
+              pc.restartIce()
+            } catch {
+              /* not restartable right now */
+            }
+          }
+        }, ICE_RESTART_AFTER_MS)
+      }
+      if (!giveUpTimer) {
+        giveUpTimer = window.setTimeout(() => {
+          giveUpTimer = 0
+          const now = realStates(pc)
+          if (!closed && (now.connection === 'disconnected' || now.ice === 'disconnected')) onGone()
+        }, DISCONNECT_MASK_MS)
+      }
+      return
+    }
+    if (connection === 'connected' || ice === 'connected' || ice === 'completed') {
+      clearIceTimers()
+      setHealth('open')
+    }
+  }
+  pc.addEventListener('connectionstatechange', onIceChange)
+  pc.addEventListener('iceconnectionstatechange', onIceChange)
 
   return link
 }

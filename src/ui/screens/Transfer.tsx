@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'preact/hooks'
+import { mediaKind, openViewer, type ViewerItem } from '../../state/media'
 import { getPeer } from '../../state/peers'
 import { openSendSheet } from '../../state/ui'
 import { clearIncoming, clearOutgoing, incoming, outgoing } from '../../transfer/manager'
 import { formatBytes, formatDuration, formatEta } from '../../transfer/protocol'
+import type { SavedFile } from '../../transfer/sinks'
 import { Button, IconButton } from '../components/Controls'
-import { CheckIcon, CloseIcon, ShieldPlainIcon } from '../components/Icons'
+import { CheckIcon, CloseIcon, ImageIcon, ShieldPlainIcon } from '../components/Icons'
+import { Thumb } from '../components/MediaViewer'
+
+/** Media the receiver can still read back, as gallery items, keyed by file index. */
+function galleryFrom(saved: SavedFile[]): Map<number, ViewerItem> {
+  const out = new Map<number, ViewerItem>()
+  saved.forEach((s, i) => {
+    const kind = mediaKind(s.type, s.name)
+    if (kind && s.blob) out.set(i, { name: s.name, size: s.size, type: s.type, kind, blob: s.blob })
+  })
+  return out
+}
 
 interface Row {
   key: string
@@ -163,6 +176,12 @@ export function Done() {
   }
   const saved = !isSend && i ? i.saved : []
   const dest = !isSend && i ? i.destinationLabel : ''
+  const gallery = galleryFrom(saved)
+  const galleryItems = [...gallery.values()]
+  const viewAt = (fileIdx: number) => {
+    const item = gallery.get(fileIdx)
+    if (item) openViewer(galleryItems, galleryItems.indexOf(item))
+  }
 
   return (
     <div class="screen">
@@ -190,16 +209,32 @@ export function Done() {
           </div>
         </div>
       </div>
+      {galleryItems.length > 1 && (
+        <Button variant="secondary" class="btn--md" onClick={() => openViewer(galleryItems, 0)}>
+          <ImageIcon /> View all {galleryItems.length} {galleryItems.every((g) => g.kind === 'image') ? 'photos' : 'photos and videos'}
+        </Button>
+      )}
       <div class="done-list">
         {snap.files.map((f, idx) => {
           const sv = saved[idx]
+          const media = gallery.get(idx)
           return (
             <div key={f.fileId} class="done-item">
+              {media && (
+                <button type="button" class="thumb-btn" aria-label={`View ${f.name}`} onClick={() => viewAt(idx)}>
+                  <Thumb item={media} size={44} />
+                </button>
+              )}
               <span class="selected-text">
                 <span class="selected-name">{f.name}</span>
                 <span class="row-sub">{formatBytes(f.size)}</span>
               </span>
-              {sv?.open && (
+              {media && (
+                <Button variant="link" onClick={() => viewAt(idx)}>
+                  View
+                </Button>
+              )}
+              {!media && sv?.open && (
                 <Button variant="link" onClick={() => void sv.open?.()}>
                   Open
                 </Button>

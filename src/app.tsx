@@ -5,6 +5,7 @@ import { toast } from './state/toast'
 import { sheet, textReceived } from './state/ui'
 import { clearIncoming, clearOutgoing, incoming, outgoing } from './transfer/manager'
 import { IncomingDialog } from './ui/components/IncomingDialog'
+import { MediaViewer } from './ui/components/MediaViewer'
 import { TextReceivedDialog } from './ui/components/TextReceivedDialog'
 import { Toasts } from './ui/components/Toasts'
 import { Home } from './ui/screens/Home'
@@ -90,6 +91,7 @@ export function App() {
       {s?.kind === 'peer' && <PeerSheet key={s.peerId} peerId={s.peerId} />}
       <IncomingDialog />
       <TextReceivedDialog />
+      <MediaViewer />
       <Toasts />
     </>
   )

@@ -42,7 +42,7 @@ export function PeerSheet({ peerId }: { peerId: string }) {
 
   if (!peer) return null
   const outdated = peer.protocol !== PROTOCOL
-  const live = peer.links.some((l) => l.open)
+  const live = peer.online && peer.links.some((l) => l.open)
   const lastSeen = Math.max(0, Math.round((Date.now() - peer.lastSeen) / 1000))
 
   const copyCode = async () => {
@@ -63,9 +63,9 @@ export function PeerSheet({ peerId }: { peerId: string }) {
         <div class="sheet-head-text">
           <h2 class="sheet-title">{peer.name}</h2>
           <div class="chips">
-            <span class={`badge ${live ? 'badge--ok' : ''}`}>
+            <span class={`badge ${live ? 'badge--ok' : 'badge--warn'}`}>
               <span class="badge-dot" />
-              {live ? 'Online' : 'Reconnecting'}
+              {live ? 'Online' : 'Reconnecting…'}
             </span>
             <span class="badge">{peer.paired ? 'Paired' : 'Nearby'}</span>
             {peer.passwordVerified && (

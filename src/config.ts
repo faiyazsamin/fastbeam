@@ -33,7 +33,16 @@ export const TEXT_MAX = 64 * 1024
 
 export const OFFER_TIMEOUT_MS = 60_000
 export const PING_INTERVAL_MS = 5_000
+/** No ping for this long marks a peer "reconnecting" (greyed, not removed). */
 export const PEER_TIMEOUT_MS = 15_000
+/** No traffic at all for this long closes the link; the peer then enters the grace period below. */
+export const LINK_SILENCE_CLOSE_MS = 60_000
+/** A peer whose last link closed stays listed as reconnecting for this long before it is removed. */
+export const PEER_GRACE_MS = 90_000
+/** How long ICE may sit in "disconnected" before we ask for an ICE restart. */
+export const ICE_RESTART_AFTER_MS = 3_000
+/** How long we hide a "disconnected" state from Trystero (and ourselves) before giving up on the link. */
+export const DISCONNECT_MASK_MS = 30_000
 export const STUN_PROBE_MS = 3_000
 export const PAIR_TIMEOUT_MS = 20_000
 export const PAIR_RETRY_MS = 10_000

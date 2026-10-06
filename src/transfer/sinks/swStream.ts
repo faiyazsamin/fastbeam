@@ -1,5 +1,6 @@
+import { mediaKind } from '../../state/media'
 import { sanitizeFileName, type FileMeta } from '../protocol'
-import type { SavedFile, Sink } from './types'
+import { PREVIEW_MAX_BYTES, PREVIEW_TOTAL_MAX_BYTES, type SavedFile, type Sink } from './types'
 
 /** Page ↔ service worker protocol for streamed downloads (see src/sw.ts). */
 export const SW_STREAM_PREFIX = '/fb-download/'
@@ -26,10 +27,20 @@ export class SwStreamSink implements Sink {
   private files: FileMeta[] = []
   private current: Stream | null = null
   private keepalive = 0
+  /** Photos and videos under the cap are mirrored in memory so the viewer can show them after the download. */
+  private previewParts: (Uint8Array[] | null)[] = []
+  private previews: (Blob | null)[] = []
+  private previewBudget = PREVIEW_TOTAL_MAX_BYTES
 
   async prepare(files: FileMeta[]): Promise<void> {
     if (!swStreamSupported()) throw new Error('service worker not controlling this page')
     this.files = files
+    this.previews = files.map(() => null)
+    this.previewParts = files.map((f) => {
+      const keep = !!mediaKind(f.mime, f.name) && f.size <= PREVIEW_MAX_BYTES && f.size <= this.previewBudget
+      if (keep) this.previewBudget -= f.size
+      return keep ? [] : null
+    })
     this.keepalive = window.setInterval(() => void fetch(SW_KEEPALIVE, { cache: 'no-store' }).catch(() => {}), 10_000)
   }
 
@@ -85,9 +96,10 @@ export class SwStreamSink implements Sink {
     this.current = stream
   }
 
-  async write(_index: number, data: Uint8Array): Promise<void> {
+  async write(index: number, data: Uint8Array): Promise<void> {
     const s = this.current
     if (!s) throw new Error('no stream')
+    this.previewParts[index]?.push(data.slice())
     const copy = data.slice().buffer
     s.unacked += data.byteLength
     s.port.postMessage({ type: 'chunk', buf: copy }, [copy])
@@ -96,7 +108,12 @@ export class SwStreamSink implements Sink {
     }
   }
 
-  async endFile(_index: number): Promise<void> {
+  async endFile(index: number): Promise<void> {
+    const parts = this.previewParts[index]
+    if (parts) {
+      this.previews[index] = new Blob(parts as BlobPart[], { type: this.files[index]?.mime || 'application/octet-stream' })
+      this.previewParts[index] = null
+    }
     const s = this.current
     if (!s) return
     s.port.postMessage({ type: 'end' })
@@ -108,11 +125,18 @@ export class SwStreamSink implements Sink {
 
   async finish(): Promise<SavedFile[]> {
     window.clearInterval(this.keepalive)
-    return this.files.map((f) => ({ name: sanitizeFileName(f.name), size: f.size }))
+    return this.files.map((f, i) => {
+      const saved: SavedFile = { name: sanitizeFileName(f.name), size: f.size, type: f.mime }
+      const blob = this.previews[i]
+      if (blob) saved.blob = async () => blob
+      return saved
+    })
   }
 
   async abort(): Promise<void> {
     window.clearInterval(this.keepalive)
+    this.previewParts = []
+    this.previews = []
     const s = this.current
     if (s) {
       s.port.postMessage({ type: 'abort' })

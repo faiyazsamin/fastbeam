@@ -19,11 +19,13 @@ export class BlobSink implements Sink {
   private files: FileMeta[] = []
   private parts: Uint8Array[][] = []
   private urls: (string | null)[] = []
+  private blobs: (Blob | null)[] = []
 
   async prepare(files: FileMeta[]): Promise<void> {
     this.files = files
     this.parts = files.map(() => [])
     this.urls = files.map(() => null)
+    this.blobs = files.map(() => null)
   }
 
   async startFile(index: number): Promise<void> {
@@ -39,6 +41,7 @@ export class BlobSink implements Sink {
     const meta = this.files[index]!
     const blob = new Blob(this.parts[index] as BlobPart[], { type: meta.mime || 'application/octet-stream' })
     this.parts[index] = []
+    this.blobs[index] = blob
     const url = URL.createObjectURL(blob)
     this.urls[index] = url
     // Best effort: browsers that require a gesture ignore this, and the Save button covers it.
@@ -52,8 +55,10 @@ export class BlobSink implements Sink {
   async finish(): Promise<SavedFile[]> {
     return this.files.map((f, i) => {
       const url = this.urls[i]
-      const saved: SavedFile = { name: sanitizeFileName(f.name), size: f.size }
+      const blob = this.blobs[i]
+      const saved: SavedFile = { name: sanitizeFileName(f.name), size: f.size, type: f.mime }
       if (url) saved.save = () => triggerDownload(url, sanitizeFileName(f.name))
+      if (blob) saved.blob = async () => blob
       return saved
     })
   }

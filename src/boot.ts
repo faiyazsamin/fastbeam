@@ -2,6 +2,7 @@
 import { initDiscovery } from './net/discovery'
 import { codeFromHash, joinWithCode } from './net/pairing'
 import { initSessionBroadcast } from './net/session'
+import { peers } from './state/peers'
 import { addPendingFiles, dragging, hasPending, pendingText } from './state/ui'
 import { initTransferGuards } from './transfer/manager'
 import { onPairedDefault } from './ui/sheets/PairSheet'
@@ -91,4 +92,18 @@ export function boot(): void {
   initDragAndPaste()
   void consumeShareTarget().then(() => consumePairLink())
   initDiscovery()
+  if (import.meta.env.DEV) installDevHooks()
+}
+
+/** Dev-server only: `fastbeam.killConnections()` in the console simulates a dropped network to test recovery. */
+function installDevHooks(): void {
+  ;(window as unknown as { fastbeam: unknown }).fastbeam = {
+    peers,
+    killConnections() {
+      for (const p of peers.value.values()) for (const l of p.links) l.pc.close()
+    },
+    dropLinks() {
+      for (const p of peers.value.values()) for (const l of p.links) l.close()
+    },
+  }
 }

@@ -86,7 +86,7 @@ export class FsAccessSink implements Sink {
   async finish(): Promise<SavedFile[]> {
     return this.files.map((f, i) => {
       const h = this.handles[i]
-      const saved: SavedFile = { name: sanitizeFileName(f.name), size: f.size }
+      const saved: SavedFile = { name: sanitizeFileName(f.name), size: f.size, type: f.mime }
       if (h) {
         saved.open = async () => {
           const file = await h.getFile()
@@ -94,6 +94,7 @@ export class FsAccessSink implements Sink {
           window.open(url, '_blank', 'noopener')
           window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
         }
+        saved.blob = () => h.getFile()
       }
       return saved
     })

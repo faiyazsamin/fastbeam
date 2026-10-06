@@ -72,6 +72,20 @@ All five milestones are built in one pass (user's call on Oct 7, 2026). Remainin
   needs internet (STUN + Nostr relays). `localStorage['fastbeam:sink']='"blob"'` forces the Blob sink so
   headless runs can complete a transfer without a file picker.
 
+## Connection resilience (iOS Safari drops ICE briefly all the time)
+- `net/patientPc.ts` is passed to Trystero as `rtcPolyfill`; it reports "connected" for up to 30 s while the
+  real ICE state is "disconnected" so Trystero's 5 s teardown never fires. `PeerLink` watches the real state,
+  asks for `restartIce()` after 3 s (only the side with the smaller device ID, to avoid glare) and gives up at 30 s.
+- Missed pings (15 s) mark a peer `online: false` ("Reconnecting…", tile disabled) but keep the link; a link
+  closes only on real ICE failure or 60 s of silence. When the last link closes the peer stays listed for 90 s
+  and a fresh link merges back in. Sheets and dialogs therefore survive a blip.
+- The first control frame in each direction is repeated every second until answered (`sendUntil`), because a
+  negotiated channel is created independently per side and an early frame can arrive before the other side's
+  channel exists.
+- Browsers cannot dial a peer by IP: every new WebRTC connection needs an SDP exchange through signaling.
+  ICE restart on the existing connection is the closest thing and keeps the direct LAN path.
+- Dev server only: `fastbeam.killConnections()` / `fastbeam.dropLinks()` in the console simulate drops.
+
 ## Trystero notes (verified against 0.26.0)
 - `getPeers()` returns `{ [peerId]: RTCPeerConnection }`; Trystero opens one non-negotiated channel labelled `"data"`, so a negotiated channel with `id: 42` is free.
 - `rtcConfig.iceServers` replaces Trystero's default STUN list entirely.

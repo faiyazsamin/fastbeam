@@ -1,5 +1,6 @@
 import { joinRoom, type Room } from 'trystero/nostr'
 import { APP_ID, ICE_SERVERS, RELAY_REDUNDANCY, RELAY_URLS } from '../config'
+import { PatientPeerConnection } from './patientPc'
 
 export interface RoomHandlers {
   onPeer(peerId: string, pc: RTCPeerConnection): void
@@ -25,6 +26,8 @@ export const trysteroSignaling: Signaling = {
       {
         appId: APP_ID,
         rtcConfig: { iceServers: ICE_SERVERS },
+        // Survive brief ICE "disconnected" blips (iOS Safari) instead of Trystero's 5 s teardown.
+        rtcPolyfill: PatientPeerConnection,
         relayConfig: RELAY_URLS ? { urls: RELAY_URLS, redundancy: RELAY_REDUNDANCY } : { redundancy: RELAY_REDUNDANCY },
       },
       roomId,

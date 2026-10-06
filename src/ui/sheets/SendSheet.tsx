@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { TEXT_MAX } from '../../config'
 import { device } from '../../state/identity'
+import { itemsFromFiles, mediaKind, openViewer } from '../../state/media'
+import { Thumb } from '../components/MediaViewer'
 import { getPeer, peerSubtitle, primaryLink } from '../../state/peers'
 import { toast } from '../../state/toast'
 import { closeSheet, pendingFiles, pendingText, type SendTab } from '../../state/ui'
@@ -89,7 +91,8 @@ export function SendSheet({ peerId, tab: initialTab }: { peerId: string; tab: Se
     if (startSend(peer, link, { files })) closeSheet()
   }
 
-  const canSend = tab === 'text' ? text.trim().length > 0 : files.length > 0
+  const reachable = peer.online && peer.links.some((l) => l.open)
+  const canSend = reachable && (tab === 'text' ? text.trim().length > 0 : files.length > 0)
   const sendLabel =
     tab === 'text'
       ? 'Send text'
@@ -151,7 +154,21 @@ export function SendSheet({ peerId, tab: initialTab }: { peerId: string; tab: Se
               <ul class="selected-list">
                 {files.map((f, i) => (
                   <li key={`${f.name}:${f.size}:${f.lastModified}`} class="selected-item">
-                    <span class="selected-icon">{fileIcon(f)}</span>
+                    {mediaKind(f.type, f.name) ? (
+                      <button
+                        type="button"
+                        class="thumb-btn"
+                        aria-label={`Preview ${f.name}`}
+                        onClick={() => {
+                          const items = itemsFromFiles(files)
+                          openViewer(items, Math.max(0, items.findIndex((it) => it.name === f.name && it.size === f.size)))
+                        }}
+                      >
+                        <Thumb item={itemsFromFiles([f])[0]!} size={40} />
+                      </button>
+                    ) : (
+                      <span class="selected-icon">{fileIcon(f)}</span>
+                    )}
                     <span class="selected-text">
                       <span class="selected-name">{f.name}</span>
                       <span class="row-sub">{formatBytes(f.size)}</span>
@@ -184,6 +201,11 @@ export function SendSheet({ peerId, tab: initialTab }: { peerId: string; tab: Se
         </div>
       )}
 
+      {!reachable && (
+        <div class="alert alert--warn" role="status">
+          Reconnecting to {peer.name}… Your selection stays here; Send comes back as soon as the link does.
+        </div>
+      )}
       <Button variant="primary" class="btn--lg" disabled={!canSend} onClick={send}>
         {sendLabel}
       </Button>

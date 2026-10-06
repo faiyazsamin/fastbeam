@@ -16,15 +16,16 @@ export function Tile({
 }) {
   const [over, setOver] = useState<number>(0)
   const outdated = peer.protocol !== PROTOCOL
-  const label = `Send to ${peer.name}, ${peer.platform}, ${peer.browser}${peer.paired ? ', paired' : ''}${outdated ? ', update needed' : ''}`
+  const away = !peer.online
+  const label = `Send to ${peer.name}, ${peer.platform}, ${peer.browser}${peer.paired ? ', paired' : ''}${outdated ? ', update needed' : ''}${away ? ', reconnecting' : ''}`
 
   return (
     <div class={`tile-wrap${over ? ' tile-wrap--over' : ''}`}>
       <button
         type="button"
-        class={`tile${over ? ' tile--over' : ''}${peer.flash ? ' tile--flash' : ''}`}
+        class={`tile${over ? ' tile--over' : ''}${peer.flash ? ' tile--flash' : ''}${away ? ' tile--away' : ''}`}
         aria-label={label}
-        disabled={outdated}
+        disabled={outdated || away}
         onClick={() => onSelect(peer)}
         onDragOver={(e) => {
           if (!e.dataTransfer?.types.includes('Files')) return
@@ -49,7 +50,9 @@ export function Tile({
         <span class="tile-icon">{over ? <DownloadIcon /> : <DeviceIcon type={peer.deviceType} />}</span>
         <span class="tile-text">
           <span class="tile-name">{over ? `Drop to send ${over} ${over === 1 ? 'file' : 'files'}` : peer.name}</span>
-          <span class="tile-sub">{over ? `to ${peer.name} · ${peer.platform}` : outdated ? 'Update needed' : peerSubtitle(peer)}</span>
+          <span class="tile-sub">
+            {over ? `to ${peer.name} · ${peer.platform}` : outdated ? 'Update needed' : away ? 'Reconnecting…' : peerSubtitle(peer)}
+          </span>
         </span>
       </button>
       {!over && (

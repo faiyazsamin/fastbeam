@@ -1,9 +1,14 @@
 /**
  * Turns an open PeerLink into a Peer: hello exchange, ping/timeout, routing of control and binary
  * frames to the transfer manager, and cleanup when the link closes.
+ *
+ * Resilience rules (iOS Safari drops ICE for a few seconds all the time):
+ *  - Missed pings mark the peer "reconnecting" instead of removing it.
+ *  - A link is closed only when ICE really fails or after a long silence.
+ *  - When the last link closes the peer stays listed for PEER_GRACE_MS; a fresh link merges back in.
  */
 import { effect } from '@preact/signals'
-import { PEER_TIMEOUT_MS, PING_INTERVAL_MS, PROTOCOL } from '../config'
+import { LINK_SILENCE_CLOSE_MS, PEER_GRACE_MS, PEER_TIMEOUT_MS, PING_INTERVAL_MS, PROTOCOL } from '../config'
 import type { DeviceType } from '../state/device'
 import { device, deviceId } from '../state/identity'
 import { getPeer, peers, removePeer, setPeer, updatePeer, type Peer } from '../state/peers'
@@ -74,15 +79,57 @@ export function waitForControl(
   })
 }
 
+/**
+ * Send `msg` now and again every `everyMs` until `until` settles or the link closes. Negotiated channels
+ * are created independently on each side, so the first frame in a direction can land before the other
+ * side's channel exists; repeating it makes the introduction order-independent.
+ */
+export function sendUntil(link: PeerLink, msg: ControlMessage, until: Promise<unknown>, everyMs = 1000): void {
+  link.sendControl(msg)
+  const timer = window.setInterval(() => {
+    if (!link.open) {
+      window.clearInterval(timer)
+      return
+    }
+    link.sendControl(msg)
+  }, everyMs)
+  const stop = () => window.clearInterval(timer)
+  until.then(stop, stop)
+}
+
 interface AttachFlags {
   paired: boolean
   passwordVerified: boolean
 }
 
-const linkTimers = new WeakMap<PeerLink, { ping: number; watchdog: number }>()
+interface LinkTimers {
+  ping: number
+  stale: number
+  silence: number
+}
+
+const linkTimers = new WeakMap<PeerLink, LinkTimers>()
+const graceTimers = new Map<string, number>()
 
 function cleanName(name: string): string {
   return name.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24) || 'Device'
+}
+
+function clearLinkTimers(link: PeerLink): void {
+  const t = linkTimers.get(link)
+  if (!t) return
+  window.clearInterval(t.ping)
+  window.clearTimeout(t.stale)
+  window.clearTimeout(t.silence)
+  linkTimers.delete(link)
+}
+
+/** Recompute `online` from the peer's links. */
+function refreshOnline(id: string): void {
+  const p = getPeer(id)
+  if (!p) return
+  const healthy = p.links.some((l) => l.open && l.health === 'open')
+  if (p.online !== healthy) updatePeer(id, { online: healthy })
 }
 
 /** Register a peer once hellos have been exchanged on `link`. Safe to call for a second link to the same device. */
@@ -94,7 +141,16 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
   }
   const fps = link.fingerprints()
   const code = fps ? await verificationCode(fps.local, fps.remote) : '------'
-  const existing = getPeer(hello.deviceId)
+  const id = hello.deviceId
+
+  // A link that came back inside the grace window cancels the removal.
+  const pendingRemoval = graceTimers.get(id)
+  if (pendingRemoval) {
+    window.clearTimeout(pendingRemoval)
+    graceTimers.delete(id)
+  }
+
+  const existing = getPeer(id)
   const peer: Peer = existing
     ? {
         ...existing,
@@ -106,11 +162,14 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
         discoverable: hello.discoverable,
         paired: existing.paired || flags.paired,
         passwordVerified: existing.passwordVerified || flags.passwordVerified,
-        links: [...existing.links, link],
+        verificationCode: existing.links.length ? existing.verificationCode : code,
+        links: [...existing.links.filter((l) => l.open), link],
         lastSeen: Date.now(),
+        online: true,
+        goneAt: null,
       }
     : {
-        deviceId: hello.deviceId,
+        deviceId: id,
         name: cleanName(hello.name),
         deviceType: hello.deviceType,
         platform: hello.platform,
@@ -123,25 +182,41 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
         flash: false,
         links: [link],
         lastSeen: Date.now(),
+        online: true,
+        goneAt: null,
       }
   setPeer(peer)
   if (!existing) toast(`${peer.name} joined`)
 
-  const id = peer.deviceId
-  const touch = () => {
-    updatePeer(id, { lastSeen: Date.now() })
-    armWatchdog()
-  }
-  const armWatchdog = () => {
-    const t = linkTimers.get(link)
-    if (t) window.clearTimeout(t.watchdog)
-    const watchdog = window.setTimeout(() => link.close(), PEER_TIMEOUT_MS)
-    linkTimers.set(link, { ping: t?.ping ?? 0, watchdog })
-  }
-  const ping = window.setInterval(() => link.sendControl({ type: 'ping' }), PING_INTERVAL_MS)
-  linkTimers.set(link, { ping, watchdog: 0 })
-  armWatchdog()
+  // Exactly one side restarts ICE on trouble, to avoid offer glare.
+  link.restartsIce = deviceId.value < id
 
+  const armStale = () => {
+    const t = linkTimers.get(link)
+    if (!t) return
+    window.clearTimeout(t.stale)
+    window.clearTimeout(t.silence)
+    t.stale = window.setTimeout(() => {
+      // Quiet for 15 s: show it as reconnecting, keep the link.
+      const p = getPeer(id)
+      if (p && !p.links.some((l) => l !== link && l.health === 'open')) updatePeer(id, { online: false })
+    }, PEER_TIMEOUT_MS)
+    t.silence = window.setTimeout(() => link.close(), LINK_SILENCE_CLOSE_MS)
+  }
+  const touch = () => {
+    updatePeer(id, { lastSeen: Date.now(), online: true, goneAt: null })
+    armStale()
+  }
+
+  clearLinkTimers(link)
+  linkTimers.set(link, {
+    ping: window.setInterval(() => link.sendControl({ type: 'ping' }), PING_INTERVAL_MS),
+    stale: 0,
+    silence: 0,
+  })
+  armStale()
+
+  link.onHealth = () => refreshOnline(id)
   link.onControl = (msg) => {
     touch()
     if (msg.type === 'ping') return
@@ -157,21 +232,26 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
     if (p) handleChunk(p, link, frame)
   }
   link.onClose = () => {
-    const t = linkTimers.get(link)
-    if (t) {
-      window.clearInterval(t.ping)
-      window.clearTimeout(t.watchdog)
-    }
+    clearLinkTimers(link)
     const p = getPeer(id)
     if (!p) return
     const links = p.links.filter((l) => l !== link)
-    if (links.length > 0) {
+    if (links.some((l) => l.open)) {
       updatePeer(id, { links })
+      refreshOnline(id)
       return
     }
+    // Last link gone: transfers on it cannot continue, but the device stays on screen for a while.
     onPeerGone(p, link)
-    removePeer(id)
-    toast(`${p.name} left`)
+    updatePeer(id, { links, online: false, goneAt: Date.now() })
+    const timer = window.setTimeout(() => {
+      graceTimers.delete(id)
+      const cur = getPeer(id)
+      if (!cur || cur.links.some((l) => l.open)) return
+      removePeer(id)
+      toast(`${cur.name} left`)
+    }, PEER_GRACE_MS)
+    graceTimers.set(id, timer)
   }
   return peer
 }
@@ -180,12 +260,12 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
 export async function introduceDiscovery(link: PeerLink): Promise<void> {
   await link.ready
   const theirs = waitForControl(link, PEER_TIMEOUT_MS, isHello)
-  link.sendControl(helloMessage())
+  sendUntil(link, helloMessage(), theirs)
   const hello = (await theirs) as HelloMessage
   await attachPeer(link, hello, { paired: false, passwordVerified: false })
 }
 
-/** Keep names and visibility live on every connected peer. */
+/** Keep names and visibility live on every connected peer; nudge pings when the tab comes back. */
 export function initSessionBroadcast(): void {
   let first = true
   effect(() => {
@@ -196,4 +276,12 @@ export function initSessionBroadcast(): void {
     }
     for (const p of peers.peek().values()) for (const l of p.links) l.sendControl(msg)
   })
+  const nudge = () => {
+    for (const p of peers.peek().values()) for (const l of p.links) l.sendControl({ type: 'ping' })
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') nudge()
+  })
+  window.addEventListener('pageshow', nudge)
+  window.addEventListener('online', nudge)
 }
