@@ -1,10 +1,38 @@
+import { FEEDBACK_EMAIL, ISSUES_URL, REPO_URL } from '../../config'
 import { probing, runDiscovery } from '../../net/discovery'
+import { device } from '../../state/identity'
 import { NAT_DETAIL, nat } from '../../state/network'
 import { goBack } from '../../state/router'
 import { deviceName, discoverable, NAME_MAX, setDeviceName, shuffleName, theme, type Theme } from '../../state/settings'
 import { Button, IconButton, Segmented, Switch } from '../components/Controls'
 import { NetworkBadge } from '../components/Header'
-import { BackIcon } from '../components/Icons'
+import { BackIcon, BugIcon, ExternalIcon, GithubIcon, MailIcon } from '../components/Icons'
+
+function feedbackMailto(): string {
+  const subject = encodeURIComponent('fastbeam feedback')
+  const body = encodeURIComponent(`\n\n—\nfastbeam ${__APP_VERSION__} · ${device.platform} · ${device.browser}`)
+  return `mailto:${FEEDBACK_EMAIL}?subject=${subject}&body=${body}`
+}
+
+function LinkRow({ href, icon, title, sub }: { href: string; icon: preact.ComponentChildren; title: string; sub: string }) {
+  const external = href.startsWith('http')
+  return (
+    <a
+      class="row row--link"
+      href={href}
+      {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+    >
+      <span class="row-icon">{icon}</span>
+      <span class="row-text">
+        <span class="row-title">{title}</span>
+        <span class="row-sub">{sub}</span>
+      </span>
+      <span class="row-ext muted">
+        <ExternalIcon />
+      </span>
+    </a>
+  )
+}
 
 const THEMES: readonly { value: Theme; label: string }[] = [
   { value: 'system', label: 'System' },
@@ -81,11 +109,25 @@ export function Settings() {
       </section>
 
       <section class="settings-section">
+        <h2>Help &amp; about</h2>
+        <p class="settings-note">
+          fastbeam sends files and text straight between two browsers. On the same Wi‑Fi, devices find each other on
+          their own. Anywhere else, one shows a code and the other scans or types it. Nothing is uploaded anywhere.
+        </p>
+      </section>
+      <section class="card card--list">
+        <LinkRow href={ISSUES_URL} icon={<BugIcon />} title="Report a problem" sub="Open an issue on GitHub" />
+        <LinkRow href={feedbackMailto()} icon={<MailIcon />} title="Send feedback" sub={FEEDBACK_EMAIL} />
+        <LinkRow href={REPO_URL} icon={<GithubIcon size={20} />} title="Source code" sub="github.com/theanam/fastbeam" />
+      </section>
+
+      <section class="settings-section">
         <h2>What leaves this device</h2>
         <p class="settings-note">
           Files and text go straight to the other device, encrypted. To find each other, devices post a scrambled network
           ID and connection details (which include your IP address) to public relays. Devices you connect to can see
-          your IP address. No accounts, no analytics.
+          your IP address. No accounts. fastbeam.app counts page views with Google Analytics; your files, device names
+          and the devices you talk to are never part of that.
         </p>
         <p class="settings-note">
           Pairing passwords are checked between the two devices and never sent anywhere. Known limit: a relay that sits

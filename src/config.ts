@@ -4,6 +4,9 @@ export const APP_SALT = 'fastbeam/v1'
 export const APP_ID = 'fastbeam.app'
 export const PROTOCOL = 1
 export const CANONICAL_ORIGIN = 'https://fastbeam.app'
+export const REPO_URL = 'https://github.com/theanam/fastbeam'
+export const ISSUES_URL = 'https://github.com/theanam/fastbeam/issues'
+export const FEEDBACK_EMAIL = 'anam.ahmed.a@gmail.com'
 
 /** Exactly two STUN servers and no TURN: fastbeam never relays traffic. */
 export const ICE_SERVERS: RTCIceServer[] = [

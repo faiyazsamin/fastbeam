@@ -27,6 +27,28 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Analytics only on the published site: the Google tag is injected into the built page here and
+      # never lives in the app source, so local builds and forks stay free of it.
+      - name: Inject Google tag into the published page
+        run: |
+          node - <<'EOF'
+          const fs = require('fs')
+          const file = 'dist/index.html'
+          const tag = [
+            '<!-- Google tag (gtag.js) -->',
+            '<script async src="https://www.googletagmanager.com/gtag/js?id=G-HVQ774N8WK"></script>',
+            '<script>',
+            '  window.dataLayer = window.dataLayer || [];',
+            '  function gtag(){dataLayer.push(arguments);}',
+            "  gtag('js', new Date());",
+            "  gtag('config', 'G-HVQ774N8WK');",
+            '</script>',
+          ].join('\n')
+          const html = fs.readFileSync(file, 'utf8')
+          if (!html.includes('</head>')) throw new Error('no </head> in ' + file)
+          fs.writeFileSync(file, html.replace('</head>', tag + '\n</head>'))
+          console.log('gtag injected into', file)
+          EOF
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

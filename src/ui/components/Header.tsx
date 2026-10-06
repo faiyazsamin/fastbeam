@@ -1,7 +1,8 @@
+import { REPO_URL } from '../../config'
 import { NAT_LABEL, nat, type NatResult } from '../../state/network'
 import { navigate } from '../../state/router'
 import { IconButton } from './Controls'
-import { Mark, SlidersIcon, Wordmark } from './Icons'
+import { GithubIcon, Mark, SlidersIcon, Wordmark } from './Icons'
 
 const TONE: Record<NatResult, string> = {
   checking: '',
@@ -31,6 +32,16 @@ export function Header() {
       </div>
       <div class="header-right">
         <NetworkBadge />
+        <a
+          class="iconbtn header-gh"
+          href={REPO_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="fastbeam on GitHub"
+          title="Source on GitHub"
+        >
+          <GithubIcon />
+        </a>
         <IconButton label="Settings" onClick={() => navigate('settings')}>
           <SlidersIcon />
         </IconButton>
