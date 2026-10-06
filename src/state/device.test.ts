@@ -59,6 +59,10 @@ describe('describeDevice', () => {
       browser: 'Safari 18',
     })
   })
+  it('headless Chrome still counts as Chrome', () => {
+    const ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.0.0 Safari/537.36'
+    expect(describeDevice({ ua })).toEqual({ deviceType: 'desktop', platform: 'Mac', browser: 'Chrome 131' })
+  })
   it('Linux Firefox and Chromebook', () => {
     expect(describeDevice({ ua: UA.linuxFirefox })).toEqual({ deviceType: 'desktop', platform: 'Linux', browser: 'Firefox 130' })
     expect(describeDevice({ ua: UA.cros })).toEqual({ deviceType: 'desktop', platform: 'Chromebook', browser: 'Chrome 129' })

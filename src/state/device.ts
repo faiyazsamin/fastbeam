@@ -27,7 +27,7 @@ function browserFrom(ua: string): string {
   if (/\bFxiOS\//.test(ua)) return `Firefox${major(m(/\bFxiOS\/([\d.]+)/))}`
   if (/\bFirefox\//.test(ua)) return `Firefox${major(m(/\bFirefox\/([\d.]+)/))}`
   if (/\bCriOS\//.test(ua)) return `Chrome${major(m(/\bCriOS\/([\d.]+)/))}`
-  if (/\bChrome\//.test(ua)) return `Chrome${major(m(/\bChrome\/([\d.]+)/))}`
+  if (/Chrome\//.test(ua)) return `Chrome${major(m(/Chrome\/([\d.]+)/))}`
   if (/\bSafari\//.test(ua)) return `Safari${major(m(/\bVersion\/([\d.]+)/))}`
   return 'Browser'
 }

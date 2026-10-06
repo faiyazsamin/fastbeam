@@ -211,6 +211,12 @@ export const LinkIcon = (p: IconProps) => (
     <path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />
   </Stroke>
 )
+export const InfoIcon = (p: IconProps) => (
+  <Stroke size={18} strokeWidth={2} {...p}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 8h.01" />
+  </Stroke>
+)
 export const ShuffleIcon = (p: IconProps) => (
   <Stroke size={18} {...p}>
     <path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5" />

@@ -12,6 +12,7 @@ import { Connecting, Password, Sorry } from './ui/screens/Pairing'
 import { Settings } from './ui/screens/Settings'
 import { Done, Progress } from './ui/screens/Transfer'
 import { PairSheet } from './ui/sheets/PairSheet'
+import { PeerSheet } from './ui/sheets/PeerSheet'
 import { SendSheet } from './ui/sheets/SendSheet'
 
 /** Turn terminal transfer states that have no screen of their own into toasts, then clear them. */
@@ -86,6 +87,7 @@ export function App() {
       <Screen />
       {s?.kind === 'send' && <SendSheet key={s.peerId} peerId={s.peerId} tab={s.tab} />}
       {s?.kind === 'pair' && <PairSheet tab={s.tab} {...(s.prefill ? { prefill: s.prefill } : {})} />}
+      {s?.kind === 'peer' && <PeerSheet key={s.peerId} peerId={s.peerId} />}
       <IncomingDialog />
       <TextReceivedDialog />
       <Toasts />

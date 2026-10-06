@@ -7,6 +7,7 @@ export type SheetState =
   | null
   | { kind: 'send'; peerId: string; tab: SendTab }
   | { kind: 'pair'; tab: PairTab; prefill?: string }
+  | { kind: 'peer'; peerId: string }
 
 export const sheet = signal<SheetState>(null)
 
@@ -21,6 +22,10 @@ export const dragging = signal(false)
 
 export function openSendSheet(peerId: string, tab: SendTab = 'files'): void {
   sheet.value = { kind: 'send', peerId, tab }
+}
+
+export function openPeerSheet(peerId: string): void {
+  sheet.value = { kind: 'peer', peerId }
 }
 
 export function openPairSheet(tab: PairTab = 'show', prefill?: string): void {

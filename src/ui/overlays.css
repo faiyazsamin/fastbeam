@@ -324,6 +324,71 @@
   color: var(--muted);
 }
 
+.tile-wrap {
+  position: relative;
+  display: flex;
+}
+
+.tile-wrap .tile {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Info affordance: 48px hit box drawn as a small ring in the tile's bottom-right corner. */
+.tile-info {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+}
+
+.tile-info:hover,
+.tile-info:focus-visible {
+  color: var(--link);
+  background: var(--tint);
+}
+
+.tile-wrap .tile.tile--over + .tile-info {
+  display: none;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.chips .badge {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.verify-card {
+  gap: 12px;
+}
+
+.verify-big {
+  align-self: center;
+  font-size: 36px;
+  letter-spacing: 0.12em;
+  color: var(--link);
+  padding: 6px 14px;
+  border-radius: 12px;
+  min-height: 48px;
+}
+
+.verify-big:hover {
+  background: var(--tint);
+}
+
 .tile-chip {
   position: absolute;
   top: 14px;

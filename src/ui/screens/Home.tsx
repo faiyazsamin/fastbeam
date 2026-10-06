@@ -2,7 +2,16 @@ import { useEffect, useState } from 'preact/hooks'
 import { SHARED_NETWORK_PEERS, STILL_LOOKING_MS } from '../../config'
 import { device } from '../../state/identity'
 import { visiblePeers, type Peer } from '../../state/peers'
-import { addPendingFiles, clearPending, dragging, openPairSheet, openSendSheet, pendingFiles, pendingText } from '../../state/ui'
+import {
+  addPendingFiles,
+  clearPending,
+  dragging,
+  openPairSheet,
+  openPeerSheet,
+  openSendSheet,
+  pendingFiles,
+  pendingText,
+} from '../../state/ui'
 import { Button, IconButton } from '../components/Controls'
 import { EditableName } from '../components/EditableName'
 import { Header } from '../components/Header'
@@ -105,7 +114,7 @@ function Nearby({ peers, desktop }: { peers: Peer[]; desktop: boolean }) {
       )}
       <div class="tiles">
         {shown.map((p) => (
-          <Tile key={p.deviceId} peer={p} onSelect={select} onDrop={drop} />
+          <Tile key={p.deviceId} peer={p} onSelect={select} onInfo={(x) => openPeerSheet(x.deviceId)} onDrop={drop} />
         ))}
       </div>
       {crowded && !showAll && (
