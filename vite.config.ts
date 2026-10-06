@@ -54,6 +54,8 @@ export default defineConfig({
       injectManifest: {
         // Precache the shell plus the latin font subsets only; other unicode ranges load on demand.
         globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}', '**/*latin*.woff2'],
+        // The social card is for link previews, not the app shell.
+        globIgnores: ['**/og.png'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
       },
       devOptions: { enabled: false },
