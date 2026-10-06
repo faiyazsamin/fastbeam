@@ -669,21 +669,29 @@
 }
 
 .pickers--3 {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
 }
 
 .picker {
-  height: 56px;
+  min-height: 56px;
+  min-width: 0;
+  padding: 8px 14px;
   border-radius: var(--r-btn);
   border: 1px dashed color-mix(in srgb, var(--muted) 55%, var(--line));
   background: var(--surface);
   color: var(--ink);
   font-size: 15px;
   font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+.picker svg {
+  flex: none;
 }
 
 .picker:hover {
