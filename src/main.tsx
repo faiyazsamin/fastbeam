@@ -9,10 +9,12 @@ import './ui/tokens.css'
 import './ui/base.css'
 import './ui/components.css'
 import './ui/screens.css'
+import './ui/overlays.css'
 
 import { render } from 'preact'
 import { registerSW } from 'virtual:pwa-register'
 import { App } from './app'
+import { boot } from './boot'
 import { initRouter } from './state/router'
 import { initTheme } from './state/settings'
 
@@ -26,3 +28,5 @@ render(<App />, root)
 if (import.meta.env.PROD) {
   registerSW({ immediate: true })
 }
+
+boot()

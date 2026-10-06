@@ -1,3 +1,4 @@
+import { probing, runDiscovery } from '../../net/discovery'
 import { NAT_DETAIL, nat } from '../../state/network'
 import { goBack } from '../../state/router'
 import { deviceName, discoverable, NAME_MAX, setDeviceName, shuffleName, theme, type Theme } from '../../state/settings'
@@ -11,11 +12,12 @@ const THEMES: readonly { value: Theme; label: string }[] = [
   { value: 'dark', label: 'Dark' },
 ]
 
+/** Screen 12. */
 export function Settings() {
   const commitName = (e: Event) => {
     const el = e.currentTarget as HTMLInputElement
-    if (!setDeviceName(el.value)) el.value = deviceName.value
-    else el.value = deviceName.value
+    setDeviceName(el.value)
+    el.value = deviceName.value
   }
 
   return (
@@ -73,8 +75,8 @@ export function Settings() {
           <NetworkBadge />
         </div>
         <p class="settings-note">{NAT_DETAIL[nat.value]}</p>
-        <Button variant="link" disabled={nat.value === 'checking'} title="Available in the next update">
-          Run again
+        <Button variant="link" disabled={probing.value} onClick={() => void runDiscovery()}>
+          {probing.value ? 'Checking…' : 'Run again'}
         </Button>
       </section>
 
@@ -84,6 +86,11 @@ export function Settings() {
           Files and text go straight to the other device, encrypted. To find each other, devices post a scrambled network
           ID and connection details (which include your IP address) to public relays. Devices you connect to can see
           your IP address. No accounts, no analytics.
+        </p>
+        <p class="settings-note">
+          Pairing passwords are checked between the two devices and never sent anywhere. Known limit: a relay that sits
+          between you can fail the check on purpose and then guess a short password offline, so pick a password you
+          would not mind being guessed, or pair on the same Wi‑Fi.
         </p>
       </section>
 

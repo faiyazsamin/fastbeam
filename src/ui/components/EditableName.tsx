@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useLayoutEffect, useRef, useState } from 'preact/hooks'
 import { deviceName, NAME_MAX, setDeviceName } from '../../state/settings'
 import { PencilIcon } from './Icons'
 
@@ -9,7 +9,8 @@ export function EditableName() {
   const inputRef = useRef<HTMLInputElement>(null)
   const committed = useRef(false)
 
-  useEffect(() => {
+  // Layout effect: focus must land before the next keystroke, not after the next paint.
+  useLayoutEffect(() => {
     if (!editing) return
     committed.current = false
     const el = inputRef.current

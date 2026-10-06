@@ -38,6 +38,18 @@ export default defineConfig({
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
           { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
+        // Android: files shared into the installed app open the Send sheet (handled in src/sw.ts).
+        share_target: {
+          action: '/share',
+          method: 'POST',
+          enctype: 'multipart/form-data',
+          params: {
+            title: 'title',
+            text: 'text',
+            url: 'url',
+            files: [{ name: 'files', accept: ['*/*'] }],
+          },
+        },
       },
       injectManifest: {
         // Precache the shell plus the latin font subsets only; other unicode ranges load on demand.

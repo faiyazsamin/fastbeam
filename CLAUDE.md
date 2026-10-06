@@ -24,24 +24,53 @@ The handoff lives in `fastbeam-handoff/` (gitignored, local only). Read in this 
 ## Layout
 ```
 src/
-  main.tsx            fonts, CSS, theme + router init, SW registration
-  app.tsx             screen switch
-  sw.ts               service worker (precache now; streaming + share target later)
-  state/              signals: storage, identity, settings, names, device, network, router, toast
-  ui/tokens.css       design tokens (light, dark, [data-theme])
-  ui/components/      Icons, Controls (Button, IconButton, Switch, Segmented), Header, EditableName, Toasts
-  ui/screens/         Home, Settings
+  main.tsx            fonts, CSS, theme + router init, SW registration, boot()
+  boot.ts             startup: discovery, pairing links (#CODE), share-target pickup, drag/paste capture, wake lock
+  app.tsx             screen priority: Sorry > Password > Connecting > Progress > Done > Settings/Home, plus overlays
+  config.ts           salts, STUN list, limits, timeouts
+  sw.ts               service worker: precache, streamed downloads (/fb-download/<id>), Share Target POST /share
+  net/
+    hash.ts           sha256, base32, base64url, roomId(kind, key)
+    stunProbe.ts      public IPv4 / IPv6 prefix / NAT kind
+    signaling.ts      Signaling interface + Trystero (Nostr) adapter
+    peerLink.ts       negotiated data channel id 42: control JSON + binary frames, fingerprints
+    session.ts        hello/ping, peer registry wiring, control routing to transfer manager
+    discovery.ts      probe → rooms → join; re-discovery on online/connection/visibility
+    pairing.ts        host codes (rotate, retire rooms), joiner state machine, timeouts → sorry
+    pairAuth.ts       PBKDF2/HKDF/HMAC password handshake (+ .worker.ts), AuthLimiter
+    qr.worker.ts      jsQR fallback for the scanner
+    wordlist.ts       2,048 words for suggested passwords
+  transfer/
+    protocol.ts       messages, chunk framing, sanitising, formatting, verification code
+    sender.ts         offer → stream files with backpressure + 32 MiB ack window
+    receiver.ts       offer dialog state → sink pipeline → done
+    manager.ts        one incoming + one outgoing at a time, busy/decline, wake lock, beforeunload
+    sinks/            fsAccess (Chromium desktop), swStream (Chrome Android, Firefox), blob (iOS)
+  state/              signals: storage, identity, settings, names, device, network, router, toast, peers, ui
+  ui/                 tokens.css, base.css, components.css, screens.css, overlays.css
+  ui/components/      Icons, Controls, Header, EditableName, Toasts, Sheet+Tabs, Tile, CodeBoxes, QrCode,
+                      Scanner, IncomingDialog, TextReceivedDialog, PairPanel (desktop)
+  ui/sheets/          SendSheet (3), PairSheet (7 + 8)
+  ui/screens/         Home (1, 2, 13), Settings (12), Pairing (9, 10, 11), Transfer (5, 6)
+e2e/                  Playwright: smoke.spec (UI), network.spec (two tabs discover, transfer, password pairing)
 scripts/icons.mjs     icon generator
 public/               CNAME, icons, robots.txt
 .github/workflows/    Pages deploy on push to main
 ```
 
-## Milestone status
-- [x] M1 Skeleton: shell, tokens, fonts, icons, CNAME, identity, settings, PWA precache, deploy workflow.
-- [ ] M2 Discovery: STUN probe, room derivation, Trystero join, hello/ping presence, Nearby grid.
-- [ ] M3 Transfer: PeerLink (negotiated channel id 42), offer/accept, chunked send, three sinks, progress, text.
-- [ ] M4 Pairing and failure: code/link/QR, in-app scanner, paste chip, `pairAuth.ts`, NAT badge, timeouts, sorry.
-- [ ] M5 Polish: Share Target, drag-and-drop, wake lock, paste-to-send, reduced-motion pass, Playwright.
+## Status
+All five milestones are built in one pass (user's call on Oct 7, 2026). Remaining known gaps:
+- Resume after disconnect, remembered devices, and PAKE-based password auth are v2 (per spec).
+- One incoming and one outgoing transfer at a time globally (spec said per peer); extras get `busy`.
+- `auth-required` carries the host's device name so the Password screen can say who set it.
+- The Nearby grid, Send sheet, Incoming dialog, Progress and Done screens were verified in headless Chrome
+  through `e2e/network.spec.ts`; real two-device, cross-network runs are still worth doing.
+
+## Testing
+- `npm test`: unit tests incl. PBKDF2/HKDF/HMAC known-answer vectors, handshake, STUN parsing, framing.
+- `npm run e2e`: Playwright against the dev server using local Chrome (`channel: 'chrome'`). The network spec
+  needs internet (STUN + Nostr relays). `localStorage['fastbeam:sink']='"blob"'` forces the Blob sink so
+  headless runs can complete a transfer without a file picker.
 
 ## Trystero notes (verified against 0.26.0)
 - `getPeers()` returns `{ [peerId]: RTCPeerConnection }`; Trystero opens one non-negotiated channel labelled `"data"`, so a negotiated channel with `id: 42` is free.
