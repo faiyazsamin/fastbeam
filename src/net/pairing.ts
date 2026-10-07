@@ -341,6 +341,7 @@ interface JoinSession {
   timers: number[]
   password: ((pw: string) => void) | null
   done: boolean
+  outcome: 'paired' | 'failed' | 'cancelled' | null
   onPaired: (peer: Peer) => void
 }
 
@@ -355,11 +356,13 @@ function endJoin(session: JoinSession): void {
   session.done = true
   for (const t of session.timers) window.clearTimeout(t)
   if (joinSession === session) joinSession = null
+  queueMicrotask(() => endJoinChecked(session))
 }
 
 function failJoin(session: JoinSession, reason: SorryState['reason']): void {
   if (session.done) return
   L.error(`join ${session.code} failed: ${reason}`, { nat: nat.value, elapsedMs: Date.now() - (joining.value?.startedAt ?? Date.now()) })
+  session.outcome = 'failed'
   endJoin(session)
   session.link?.close()
   void session.handle?.leave()
@@ -464,12 +467,32 @@ async function joinerIntro(session: JoinSession, link: PeerLink): Promise<void> 
     }
     const peer = await attachPeer(link, hello, { paired: true, passwordVerified })
     endJoin(session)
+    session.outcome = 'paired'
     joining.value = null
-    L.info(`paired with ${peer.name} via code ${session.code}`)
+    L.info(`paired with ${peer.name} via code ${session.code}`, { passwordVerified })
+    toast(passwordVerified ? `Paired with ${peer.name} (password verified)` : `Paired with ${peer.name}`, 4500)
     flashPeer(peer.deviceId)
+    // Bring the tile on screen; on a phone it can sit below the fold.
+    window.setTimeout(() => {
+      document.querySelector(`[data-peer="${peer.deviceId}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 50)
     session.onPaired(peer)
-  } catch {
+  } catch (err) {
+    L.error(`join ${session.code}: introduction threw`, err)
     failJoin(session, 'closed')
+  }
+}
+
+/**
+ * Safety net: the Connecting screen must never just vanish. If a session ends without a recorded
+ * outcome, surface it as a failure so the user gets the Sorry screen rather than silence.
+ */
+function endJoinChecked(session: JoinSession): void {
+  if (!session.done) return
+  if (session.outcome === null) {
+    L.error(`join ${session.code} ended with no outcome; treating as a failure`)
+    sorry.value = { code: session.code, cause: nat.value === 'checking' ? 'unknown' : nat.value, reason: 'closed' }
+    joining.value = null
   }
 }
 
@@ -485,6 +508,7 @@ export function joinWithCode(code: string, opts: { intent?: boolean; onPaired: (
     timers: [],
     password: null,
     done: false,
+    outcome: null,
     onPaired: opts.onPaired,
   }
   joinSession = session
@@ -539,6 +563,7 @@ export function cancelJoin(): void {
   const s = joinSession
   if (!s) return
   L.info(`join ${s.code} cancelled`)
+  s.outcome = 'cancelled'
   endJoin(s)
   s.link?.close()
   void s.handle?.leave()

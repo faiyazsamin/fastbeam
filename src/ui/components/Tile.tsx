@@ -21,7 +21,7 @@ export function Tile({
   const label = `Send to ${peer.name}, ${peer.platform}, ${peer.browser}${peer.paired ? ', paired' : ''}${outdated ? ', update needed' : ''}${away ? ', reconnecting' : ''}`
 
   return (
-    <div class={`tile-wrap${over ? ' tile-wrap--over' : ''}`}>
+    <div class={`tile-wrap${over ? ' tile-wrap--over' : ''}`} data-peer={peer.deviceId}>
       <button
         type="button"
         class={`tile${over ? ' tile--over' : ''}${peer.flash ? ' tile--flash' : ''}${away ? ' tile--away' : ''}`}

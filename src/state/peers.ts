@@ -76,7 +76,7 @@ export function removePeer(deviceId: string): void {
 
 export function flashPeer(deviceId: string): void {
   updatePeer(deviceId, { flash: true })
-  window.setTimeout(() => updatePeer(deviceId, { flash: false }), 1600)
+  window.setTimeout(() => updatePeer(deviceId, { flash: false }), 2600)
 }
 
 export function peerSubtitle(p: Peer): string {

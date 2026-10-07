@@ -477,7 +477,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .tile--flash {
-    animation: fb-flash 1.4s ease-out 1;
+    animation: fb-flash 1.2s ease-out 2;
   }
   @keyframes fb-flash {
     0% {
