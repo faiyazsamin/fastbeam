@@ -73,7 +73,7 @@ function Screen() {
   if (j?.step === 'password') return <Password />
   if (j) return <Connecting />
   const o = outgoing.value?.snap.value
-  if (o?.state === 'sending') return <Progress />
+  if (o?.state === 'offered' || o?.state === 'sending') return <Progress />
   if (o?.state === 'done' && o.text === null) return <Done />
   const i = incoming.value?.snap.value
   if (i?.state === 'receiving') return <Progress />

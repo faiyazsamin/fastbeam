@@ -34,6 +34,7 @@ export interface OutgoingSnapshot {
   ackedBytes: number
   speed: number
   etaSeconds: number | null
+  offeredAt: number
   startedAt: number | null
   finishedAt: number | null
   cancelledBy: 'sender' | 'receiver' | null
@@ -78,6 +79,7 @@ export class OutgoingTransfer {
       ackedBytes: 0,
       speed: 0,
       etaSeconds: null,
+      offeredAt: Date.now(),
       startedAt: null,
       finishedAt: null,
       cancelledBy: null,

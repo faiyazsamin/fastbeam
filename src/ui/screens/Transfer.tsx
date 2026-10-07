@@ -39,6 +39,9 @@ interface View {
   startedAt: number | null
   /** Sender only: everything is queued and we are waiting for the receiver to confirm the tail. */
   finishing: boolean
+  /** waiting = offer not answered yet; starting = accepted, no bytes moved yet; running = bytes flowing. */
+  phase: 'waiting' | 'starting' | 'running'
+  offeredAt: number | null
   rows: Row[]
   cancel: () => void
 }
@@ -53,17 +56,20 @@ function formatElapsed(ms: number): string {
 
 function currentView(): View | null {
   const o = outgoing.value?.snap.value
-  if (o && o.state === 'sending') {
+  if (o && (o.state === 'sending' || o.state === 'offered')) {
+    const done = Math.min(o.sentBytes, o.ackedBytes + 4 * 1024 * 1024)
     return {
       kind: 'send',
       peerName: o.peerName,
       peerId: o.peerId,
       total: o.totalSize,
-      done: Math.min(o.sentBytes, o.ackedBytes + 4 * 1024 * 1024),
+      done,
       speed: o.speed,
       eta: o.etaSeconds,
       startedAt: o.startedAt,
-      finishing: o.sentBytes >= o.totalSize && o.ackedBytes < o.totalSize,
+      finishing: o.state === 'sending' && o.sentBytes >= o.totalSize && o.ackedBytes < o.totalSize,
+      phase: o.state === 'offered' ? 'waiting' : done === 0 ? 'starting' : 'running',
+      offeredAt: o.offeredAt,
       rows: o.files.map((f) => ({ key: f.fileId, name: f.name, size: f.size, done: f.sent, complete: f.sent >= f.size })),
       cancel: () => outgoing.value?.cancel(),
     }
@@ -80,6 +86,8 @@ function currentView(): View | null {
       eta: i.etaSeconds,
       startedAt: i.startedAt,
       finishing: false,
+      phase: i.receivedBytes === 0 ? 'starting' : 'running',
+      offeredAt: i.offeredAt,
       rows: i.files.map((f) => ({ key: f.fileId, name: f.name, size: f.size, done: f.received, complete: f.complete })),
       cancel: () => incoming.value?.cancel(),
     }
@@ -104,9 +112,21 @@ export function Progress() {
     return () => window.clearInterval(t)
   }, [])
   if (!v) return null
-  const elapsed = v.startedAt ? formatElapsed(now - v.startedAt) : '0:00'
+  const since = v.startedAt ?? v.offeredAt
+  const elapsed = since ? formatElapsed(now - since) : '0:00'
   const pct = v.total > 0 ? Math.min(100, Math.floor((v.done / v.total) * 100)) : 0
   const dash = (pct / 100) * CIRC
+  const waiting = v.phase === 'waiting'
+  const starting = v.phase === 'starting'
+  const statusLine = waiting
+    ? `Waiting for ${v.peerName} to accept…`
+    : starting
+      ? v.kind === 'send'
+        ? `${v.peerName} accepted. Setting up the transfer…`
+        : 'Setting up the transfer…'
+      : v.finishing
+        ? `Everything is sent. Waiting for ${v.peerName} to finish writing it to disk…`
+        : null
   return (
     <div class="screen">
       <header class="screen-head">
@@ -119,19 +139,38 @@ export function Progress() {
         </span>
       </header>
 
-      <div class="ring" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Overall progress">
+      <div
+        class={`ring${waiting || starting ? ' ring--indeterminate' : ''}`}
+        role="progressbar"
+        aria-valuenow={waiting || starting ? undefined : pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuetext={waiting ? 'Waiting for the other device to accept' : starting ? 'Setting up' : `${pct} percent`}
+        aria-label="Overall progress"
+      >
         <svg width="240" height="240" viewBox="0 0 240 240" aria-hidden="true">
           <circle cx="120" cy="120" r={R} class="ring-track" />
-          <circle cx="120" cy="120" r={R} class="ring-fill" stroke-dasharray={`${dash} ${CIRC}`} />
+          <circle cx="120" cy="120" r={R} class="ring-fill" stroke-dasharray={waiting || starting ? `${CIRC * 0.18} ${CIRC}` : `${dash} ${CIRC}`} />
         </svg>
         <div class="ring-center">
-          <div class="ring-pct">
-            {pct}
-            <span>%</span>
-          </div>
-          <div class="muted">
-            {formatBytes(v.done)} of {formatBytes(v.total)}
-          </div>
+          {waiting || starting ? (
+            <>
+              <div class="ring-wait display">{waiting ? 'Waiting' : 'Starting'}</div>
+              <div class="muted">
+                {v.rows.length === 0 ? 'text' : `${v.rows.length} ${v.rows.length === 1 ? 'file' : 'files'}`} · {formatBytes(v.total)}
+              </div>
+            </>
+          ) : (
+            <>
+              <div class="ring-pct">
+                {pct}
+                <span>%</span>
+              </div>
+              <div class="muted">
+                {formatBytes(v.done)} of {formatBytes(v.total)}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -149,23 +188,24 @@ export function Progress() {
           <div class="mono stat-value">{v.finishing ? 'finishing' : v.eta !== null ? formatEta(v.eta) : '—'}</div>
         </div>
       </div>
-      {v.finishing && (
-        <div class="row-sub" style={{ textAlign: 'center' }} role="status">
-          Everything is sent. Waiting for {v.peerName} to finish writing it to disk…
+      {statusLine && (
+        <div class="status-line" role="status">
+          <span class="dot-live" aria-hidden="true" />
+          {statusLine}
         </div>
       )}
 
       <div class="card card--list filelist" aria-live="polite">
         {liveRows.map((r) => {
           const p = r.size > 0 ? Math.min(100, Math.floor((r.done / r.size) * 100)) : r.complete ? 100 : 0
-          const waiting = r.done === 0 && !r.complete
+          const rowWaiting = r.done === 0 && !r.complete
           return (
             <div key={r.key} class="filerow">
               <div class="filerow-head">
-                <span class={waiting ? 'muted' : ''} style={{ fontWeight: 600 }}>
+                <span class={rowWaiting ? 'muted' : ''} style={{ fontWeight: 600 }}>
                   {r.name}
                 </span>
-                <span class="muted">{r.complete ? 'Done' : waiting ? 'Waiting' : `${p}%`}</span>
+                <span class="muted">{r.complete ? 'Done' : rowWaiting ? (waiting ? 'Queued' : 'Waiting') : `${p}%`}</span>
               </div>
               <div class="bar">
                 <div style={{ width: `${r.complete ? 100 : p}%` }} />
@@ -180,7 +220,7 @@ export function Progress() {
           Keep this tab open until it finishes.
         </div>
         <Button variant="secondary" onClick={v.cancel}>
-          Cancel
+          {waiting ? 'Cancel request' : 'Cancel'}
         </Button>
       </div>
     </div>

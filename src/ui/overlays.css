@@ -1522,6 +1522,36 @@
   transition: stroke-dasharray 200ms linear;
 }
 
+.ring--indeterminate .ring-fill {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ring--indeterminate svg {
+    animation: fb-ring-spin 1.4s linear infinite;
+  }
+  @keyframes fb-ring-spin {
+    to {
+      transform: rotate(270deg);
+    }
+  }
+}
+
+.ring-wait {
+  font-size: 34px;
+  font-weight: 800;
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--body);
+  text-align: center;
+}
+
 .ring-center {
   position: absolute;
   inset: 0;
