@@ -7,7 +7,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  min-height: calc(100dvh - var(--console-h, 0px));
 }
 
 /* Header */

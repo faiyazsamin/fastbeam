@@ -98,6 +98,27 @@ export function Console() {
     if (el) el.scrollTop = el.scrollHeight
   }, [entries.length, open, paused])
 
+  // Reserve room under the page so buttons at the bottom stay reachable while the console is docked.
+  useEffect(() => {
+    const root = document.documentElement
+    if (!open) {
+      root.style.removeProperty('--console-h')
+      return
+    }
+    const apply = () => {
+      const h = document.querySelector<HTMLElement>('.console')?.getBoundingClientRect().height ?? 0
+      root.style.setProperty('--console-h', `${Math.round(h)}px`)
+    }
+    apply()
+    const ro = new ResizeObserver(apply)
+    const el = document.querySelector<HTMLElement>('.console')
+    if (el) ro.observe(el)
+    return () => {
+      ro.disconnect()
+      root.style.removeProperty('--console-h')
+    }
+  }, [open, height])
+
   if (!open) return null
 
   const threshold = LEVELS.indexOf(minLevel)

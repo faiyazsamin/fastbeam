@@ -94,4 +94,16 @@ test('password-protected pairing by code', async ({ browser }, info) => {
   await expect(a.getByRole('button', { name: /Send to Lock B.*paired/ })).toBeVisible({ timeout: 30_000 })
   const label2 = await a.locator('.bigcode').getAttribute('aria-label')
   expect(label2).not.toBe(label)
+
+  // A third device with the OLD link must not get in, with or without the password.
+  const ctxC = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
+  await ctxC.addInitScript(() => localStorage.setItem('fastbeam:name', JSON.stringify('Lock C')))
+  const c = await ctxC.newPage()
+  await c.goto(`/#${code}`)
+  await expect(c.getByRole('heading', { name: 'That code has already been used' })).toBeVisible({ timeout: 90_000 })
+  // In this test all tabs share one public IP, so C may still meet A through same-network discovery;
+  // what must never happen is a *paired* relationship from the stale link.
+  await expect(c.getByRole('button', { name: /Send to Lock A.*paired/ })).toHaveCount(0)
+  await expect(a.getByRole('button', { name: /Send to Lock C.*paired/ })).toHaveCount(0)
+  await ctxC.close()
 })

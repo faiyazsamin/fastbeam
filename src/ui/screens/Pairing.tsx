@@ -143,13 +143,17 @@ export function Sorry() {
       ? 'Couldn’t verify the other device'
       : s.reason === 'rotated'
         ? 'That code has been reset'
-        : 'Couldn’t connect directly'
+        : s.reason === 'expired'
+          ? 'That code has already been used'
+          : 'Couldn’t connect directly'
   const copy =
     s.reason === 'auth'
       ? 'The password check failed in a way that suggests something sat between the two devices. Get a fresh code and try again on the same Wi‑Fi.'
       : s.reason === 'rotated'
         ? 'Too many wrong passwords, so the other device made a new code. Ask for the new one.'
-        : 'fastbeam only sends files device‑to‑device, and these two networks won’t allow a direct link.'
+        : s.reason === 'expired'
+          ? 'Codes and links work once. Another device already connected with this one, so the other device is showing a new code now. Ask for that one.'
+          : 'fastbeam only sends files device‑to‑device, and these two networks won’t allow a direct link.'
   return (
     <div class="screen">
       <header class="screen-head screen-head--right">
@@ -177,6 +181,7 @@ export function Sorry() {
         <p class="screen-copy screen-copy--left">{copy}</p>
         {cause && s.reason === 'timeout' && <span class="badge badge--warn">{cause}</span>}
       </div>
+      {s.reason !== 'expired' && (
       <section class="card card--pad steps">
         <div class="eyebrow-caps eyebrow-caps--link">This always works</div>
         <div class="step">
@@ -190,7 +195,9 @@ export function Sorry() {
           <span>Reopen fastbeam on both. They&rsquo;ll find each other on their own — no code needed.</span>
         </div>
       </section>
+      )}
       <div class="screen-cta stack-10">
+        {s.reason !== 'expired' && (
         <Button
           variant="primary"
           class="btn--lg"
@@ -201,6 +208,19 @@ export function Sorry() {
         >
           Try again
         </Button>
+        )}
+        {s.reason === 'expired' && (
+          <Button
+            variant="primary"
+            class="btn--lg"
+            onClick={() => {
+              dismissSorry()
+              openPairSheet('scan')
+            }}
+          >
+            Enter the new code
+          </Button>
+        )}
         <Button
           variant="link"
           class="btn--center"

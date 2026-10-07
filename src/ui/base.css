@@ -25,6 +25,8 @@ body {
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* Set while the status console is docked, so nothing hides behind it. */
+  padding-bottom: var(--console-h, 0px);
 }
 
 button {

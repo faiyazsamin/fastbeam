@@ -155,11 +155,19 @@ async function hostIntro(room: HostRoom, link: PeerLink): Promise<void> {
   }
 
   const h = host.value
-  const locked = !!h && h.code === room.code && h.locked && h.password.length >= PASSWORD_MIN
+  // A code is single-use: once a peer has paired through this room (or the code moved on for any other
+  // reason) nobody else gets in, whatever the lock state. Tell them why, then drop the link.
+  if (room.retired || !h || h.code !== room.code) {
+    L.warn(`rejected a join on retired code ${room.code}`)
+    link.sendControl({ type: 'code-expired' })
+    window.setTimeout(() => link.close(), 300)
+    return
+  }
+  const locked = h.locked && h.password.length >= PASSWORD_MIN
   let passwordVerified = false
   L.info(`someone joined code ${room.code}`, { locked })
 
-  if (locked && h) {
+  if (locked) {
     const key = await ensureHostKey(h.password, room.code)
     const fps = link.fingerprints()
     if (!fps) throw new Error('no fingerprints')
@@ -198,6 +206,8 @@ async function hostIntro(room: HostRoom, link: PeerLink): Promise<void> {
     }
   }
 
+  // Nothing else may slip in while this introduction completes.
+  room.retired = true
   const theirs = waitForControl(link, PEER_TIMEOUT_MS, isHello)
   sendUntil(link, helloMessage(), theirs)
   const hello = (await theirs) as HelloMessage
@@ -215,7 +225,10 @@ function openHostRoom(code: string): void {
       handle: trysteroSignaling.join(id, {
         onPeer(_peerId, pc) {
           const link = createPeerLink(pc)
-          hostIntro(room, link).catch(() => link.close())
+          hostIntro(room, link).catch((err: unknown) => {
+            L.warn(`host introduction on ${room.code} ended: ${err instanceof Error ? err.message : String(err)}`)
+            link.close()
+          })
         },
         onPeerLeave() {},
       }),
@@ -315,7 +328,7 @@ export interface JoinState {
 export interface SorryState {
   code: string
   cause: NatKind
-  reason: 'timeout' | 'auth' | 'rotated' | 'closed'
+  reason: 'timeout' | 'auth' | 'rotated' | 'closed' | 'expired'
 }
 
 export const joining = signal<JoinState | null>(null)
@@ -368,9 +381,18 @@ async function joinerIntro(session: JoinSession, link: PeerLink): Promise<void> 
 
   let first: ControlMessage
   try {
-    first = await waitForControl(link, PEER_TIMEOUT_MS, (m) => m.type === 'auth-required' || isHello(m))
+    first = await waitForControl(
+      link,
+      PEER_TIMEOUT_MS,
+      (m) => m.type === 'auth-required' || m.type === 'code-expired' || isHello(m),
+    )
   } catch {
     failJoin(session, 'closed')
+    return
+  }
+
+  if (first.type === 'code-expired') {
+    failJoin(session, 'expired')
     return
   }
 
