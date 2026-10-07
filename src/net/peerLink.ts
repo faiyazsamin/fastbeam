@@ -62,10 +62,26 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
   // Avoid unhandled-rejection noise when nobody awaits a link that never opened.
   ready.catch(() => {})
 
+  // Control frames can arrive before anyone has attached a handler (Chrome delivers data that was queued
+  // for a late-created negotiated channel ahead of its "open" event). Hold them until a handler exists.
+  let controlHandler: ((msg: ControlMessage) => void) | null = null
+  const pendingControl: ControlMessage[] = []
+  const MAX_PENDING = 64
+
   const link: PeerLink = {
     pc,
     ready,
     restartsIce: false,
+    get onControl() {
+      return controlHandler
+    },
+    set onControl(fn) {
+      controlHandler = fn
+      if (fn && pendingControl.length) {
+        const queued = pendingControl.splice(0)
+        for (const m of queued) fn(m)
+      }
+    },
     get open() {
       return dc.readyState === 'open'
     },
@@ -92,7 +108,6 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
       if (dc.readyState !== 'open') throw new Error('link closed')
       dc.send(frame)
     },
-    onControl: null,
     onChunk: null,
     onBufferedAmountLow: null,
     onHealth: null,
@@ -128,12 +143,13 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
       try {
         const msg = JSON.parse(e.data) as unknown
         if (msg && typeof msg === 'object' && typeof (msg as ControlMessage).type === 'string') {
-          link.onControl?.(msg as ControlMessage)
+          if (controlHandler) controlHandler(msg as ControlMessage)
+          else if (pendingControl.length < MAX_PENDING) pendingControl.push(msg as ControlMessage)
         }
       } catch {
         /* ignore malformed control frames */
       }
-    } else {
+    } else if (e.data instanceof ArrayBuffer) {
       link.onChunk?.(e.data)
     }
   }
@@ -200,5 +216,9 @@ export function createPeerLink(pc: RTCPeerConnection): PeerLink {
   pc.addEventListener('connectionstatechange', onIceChange)
   pc.addEventListener('iceconnectionstatechange', onIceChange)
 
+  if (import.meta.env.DEV) {
+    const w = window as unknown as { __fbLinks?: PeerLink[] }
+    ;(w.__fbLinks ??= []).push(link)
+  }
   return link
 }

@@ -4,11 +4,36 @@
  */
 import { effect, signal } from '@preact/signals'
 import type { ControlMessage, PeerLink } from '../net/peerLink'
+import { logger } from '../state/log'
 import type { Peer } from '../state/peers'
 import { toast } from '../state/toast'
-import { isTransferMessage, type OfferMessage } from './protocol'
+import { formatBytes, isTransferMessage, type OfferMessage } from './protocol'
 import { IncomingTransfer } from './receiver'
 import { OutgoingTransfer } from './sender'
+
+const L = logger('transfer')
+
+/** Log every state change of a transfer snapshot signal. */
+function watchStates(label: string, t: OutgoingTransfer | IncomingTransfer): void {
+  let last = ''
+  const dispose = effect(() => {
+    const s = t.snap.value
+    if (s.state === last) return
+    last = s.state
+    const extra: Record<string, unknown> = {}
+    if (s.state === 'done' && s.startedAt && s.finishedAt) {
+      const secs = Math.max(0.001, (s.finishedAt - s.startedAt) / 1000)
+      extra.took = `${secs.toFixed(1)} s`
+      extra.avg = `${formatBytes(s.totalSize / secs)}/s`
+    }
+    if ('error' in s && s.error) extra.error = s.error
+    if ('cancelledBy' in s && s.cancelledBy) extra.by = s.cancelledBy
+    if ('sinkKind' in s && s.state === 'receiving') extra.sink = s.sinkKind
+    const level = s.state === 'failed' ? 'error' : s.state === 'declined' || s.state === 'cancelled' || s.state === 'timeout' || s.state === 'busy' ? 'warn' : 'info'
+    L[level](`${label} ${t.id.slice(0, 8)} → ${s.state}`, Object.keys(extra).length ? extra : undefined)
+    if (['done', 'declined', 'busy', 'timeout', 'cancelled', 'failed'].includes(s.state)) queueMicrotask(dispose)
+  })
+}
 
 export const outgoing = signal<OutgoingTransfer | null>(null)
 export const incoming = signal<IncomingTransfer | null>(null)
@@ -30,6 +55,12 @@ export function startSend(peer: Peer, link: PeerLink, input: { files: File[] } |
     return null
   }
   const t = new OutgoingTransfer(peer, link, input)
+  const s = t.snap.value
+  L.info(
+    `offering ${s.text !== null ? 'text' : `${s.files.length} file(s), ${formatBytes(s.totalSize)}`} to ${peer.name}`,
+    { chunk: link.chunkSize, maxMessage: link.pc.sctp?.maxMessageSize },
+  )
+  watchStates(`send to ${peer.name}`, t)
   outgoing.value = t
   void t.run()
   return t
@@ -60,12 +91,18 @@ export function handleControl(peer: Peer, link: PeerLink, msg: ControlMessage): 
     const validText = typeof offer.text === 'string' && offer.text.length <= 64 * 1024
     if ((!offer.files?.length && !validText) || !validFiles || typeof offer.totalSize !== 'number') return
     if (busy(peer, link)) {
+      L.warn(`offer from ${peer.name} declined: busy`)
       link.sendControl({ type: 'decline', transferId: offer.transferId, reason: 'busy' })
       return
     }
     const t = new IncomingTransfer(peer, link, offer, () => {
       if (incomingOffer.value === t) incomingOffer.value = null
     })
+    L.info(
+      `offer from ${peer.name}: ${offer.text !== undefined ? 'text' : `${offer.files?.length ?? 0} file(s), ${formatBytes(offer.totalSize)}`}`,
+      { sink: t.snap.value.sinkKind },
+    )
+    watchStates(`receive from ${peer.name}`, t)
     incoming.value = t
     incomingOffer.value = t
     return
@@ -99,10 +136,13 @@ async function acquireWake(): Promise<void> {
   if (!wantWake || wakeLock || !('wakeLock' in navigator) || document.visibilityState !== 'visible') return
   try {
     wakeLock = await navigator.wakeLock.request('screen')
+    L.debug('screen wake lock acquired')
     wakeLock.addEventListener('release', () => {
+      L.debug('screen wake lock released')
       wakeLock = null
     })
-  } catch {
+  } catch (err) {
+    L.warn('wake lock unavailable', err)
     wakeLock = null
   }
 }

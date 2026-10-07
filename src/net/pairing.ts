@@ -14,8 +14,11 @@ import {
   PASSWORD_MIN,
   PEER_TIMEOUT_MS,
 } from '../config'
+import { logger } from '../state/log'
 import { nat } from '../state/network'
 import type { NatKind } from './stunProbe'
+
+const L = logger('pair')
 import { flashPeer, type Peer } from '../state/peers'
 import { toast } from '../state/toast'
 import { b64url, fromB64url, roomId } from './hash'
@@ -154,6 +157,7 @@ async function hostIntro(room: HostRoom, link: PeerLink): Promise<void> {
   const h = host.value
   const locked = !!h && h.code === room.code && h.locked && h.password.length >= PASSWORD_MIN
   let passwordVerified = false
+  L.info(`someone joined code ${room.code}`, { locked })
 
   if (locked && h) {
     const key = await ensureHostKey(h.password, room.code)
@@ -177,12 +181,15 @@ async function hostIntro(room: HostRoom, link: PeerLink): Promise<void> {
         const reply = await authMac(key, 'H', nH, nJ, fps.local, fps.remote)
         link.sendControl({ type: 'auth-ok', mac: b64url(reply) })
         passwordVerified = true
+        L.info(`password verified for code ${room.code}`)
         break
       }
       const rotate = room.limiter.fail()
+      L.warn(`wrong password on code ${room.code}`, { triesLeft: room.limiter.triesLeft })
       toast(`Wrong password attempt (${room.limiter.triesLeft} left)`)
       link.sendControl({ type: 'auth-fail', triesLeft: room.limiter.triesLeft })
       if (rotate) {
+        L.warn(`too many failures, rotating code ${room.code}`)
         toast('Too many wrong tries — here’s a new code')
         link.close()
         rotateCode()
@@ -228,6 +235,7 @@ export function startHosting(): void {
   if (host.value) return
   const code = generateCode()
   host.value = { code, expiresAt: Date.now() + CODE_TTL_MS, locked: false, password: '', deriving: false }
+  L.info(`hosting code ${code} (expires in ${CODE_TTL_MS / 60000} min)`)
   openHostRoom(code)
 }
 
@@ -244,6 +252,7 @@ export function rotateCode(keepRoomForPeers = false): void {
     hostRoom = null
   }
   const code = generateCode()
+  L.info(`code ${cur.code} → ${code}${keepRoomForPeers ? ' (old room kept for its peer)' : ''}`)
   host.value = { ...cur, code, expiresAt: Date.now() + CODE_TTL_MS }
   hostKey = null
   hostKeyFor = ''
@@ -254,6 +263,7 @@ export function rotateCode(keepRoomForPeers = false): void {
 /** Stop advertising. Rooms with connected peers stay alive until those peers leave. */
 export function stopHosting(): void {
   if (!host.value) return
+  L.info(`stopped hosting code ${host.value.code}`)
   if (hostRoom) retire(hostRoom)
   hostRoom = null
   host.value = null
@@ -336,6 +346,7 @@ function endJoin(session: JoinSession): void {
 
 function failJoin(session: JoinSession, reason: SorryState['reason']): void {
   if (session.done) return
+  L.error(`join ${session.code} failed: ${reason}`, { nat: nat.value, elapsedMs: Date.now() - (joining.value?.startedAt ?? Date.now()) })
   endJoin(session)
   session.link?.close()
   void session.handle?.leave()
@@ -352,6 +363,7 @@ async function joinerIntro(session: JoinSession, link: PeerLink): Promise<void> 
   session.link = link
   for (const t of session.timers) window.clearTimeout(t)
   session.timers = []
+  L.info(`found host for code ${session.code}, channel open`)
   patchJoin({ step: 'opening' })
 
   let first: ControlMessage
@@ -372,6 +384,7 @@ async function joinerIntro(session: JoinSession, link: PeerLink): Promise<void> 
       failJoin(session, 'auth')
       return
     }
+    L.info('host requires a password')
     patchJoin({ step: 'password', locked: true, hostName: typeof first.name === 'string' ? first.name : null })
 
     for (;;) {
@@ -381,7 +394,9 @@ async function joinerIntro(session: JoinSession, link: PeerLink): Promise<void> 
       if (session.done) return
       patchJoin({ checking: true, wrong: false })
       try {
+        const k0 = Date.now()
         const key = await deriveAuthKeyInWorker(pw, session.code)
+        L.debug(`password key derived in ${Date.now() - k0} ms`)
         const nJ = randomNonce()
         // fpH is theirs (remote), fpJ is ours (local).
         const mac = await authMac(key, 'J', nH, nJ, fps.remote, fps.local)
@@ -390,6 +405,7 @@ async function joinerIntro(session: JoinSession, link: PeerLink): Promise<void> 
         const res = await reply
         if (res.type === 'auth-fail') {
           const triesLeft = typeof res.triesLeft === 'number' ? res.triesLeft : null
+          L.warn('password rejected by host', { triesLeft })
           patchJoin({ checking: false, wrong: true, triesLeft })
           if (triesLeft === 0) {
             failJoin(session, 'rotated')
@@ -404,6 +420,7 @@ async function joinerIntro(session: JoinSession, link: PeerLink): Promise<void> 
           return
         }
         passwordVerified = true
+        L.info('password accepted, host proof verified')
         patchJoin({ checking: false, passwordChecked: true, step: 'opening' })
         break
       } catch {
@@ -426,6 +443,7 @@ async function joinerIntro(session: JoinSession, link: PeerLink): Promise<void> 
     const peer = await attachPeer(link, hello, { paired: true, passwordVerified })
     endJoin(session)
     joining.value = null
+    L.info(`paired with ${peer.name} via code ${session.code}`)
     flashPeer(peer.deviceId)
     session.onPaired(peer)
   } catch {
@@ -448,6 +466,7 @@ export function joinWithCode(code: string, opts: { intent?: boolean; onPaired: (
     onPaired: opts.onPaired,
   }
   joinSession = session
+  L.info(`joining code ${code}`, { intent: !!opts.intent, nat: nat.value })
   joining.value = {
     code,
     startedAt: Date.now(),
@@ -476,6 +495,7 @@ export function joinWithCode(code: string, opts: { intent?: boolean; onPaired: (
     session.timers.push(
       window.setTimeout(() => {
         if (session.done || session.link) return
+        L.warn(`no host after ${PAIR_TIMEOUT_MS / 1000} s, restarting ICE and waiting ${PAIR_RETRY_MS / 1000} s more`)
         for (const pc of Object.values(session.handle?.peers() ?? {})) {
           try {
             pc.restartIce()
@@ -496,6 +516,7 @@ export function submitJoinPassword(password: string): void {
 export function cancelJoin(): void {
   const s = joinSession
   if (!s) return
+  L.info(`join ${s.code} cancelled`)
   endJoin(s)
   s.link?.close()
   void s.handle?.leave()

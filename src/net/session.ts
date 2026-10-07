@@ -11,7 +11,10 @@ import { effect } from '@preact/signals'
 import { LINK_SILENCE_CLOSE_MS, PEER_GRACE_MS, PEER_TIMEOUT_MS, PING_INTERVAL_MS, PROTOCOL } from '../config'
 import type { DeviceType } from '../state/device'
 import { device, deviceId } from '../state/identity'
+import { logger } from '../state/log'
 import { getPeer, peers, removePeer, setPeer, updatePeer, type Peer } from '../state/peers'
+
+const L = logger('session')
 import { deviceName, discoverable } from '../state/settings'
 import { toast } from '../state/toast'
 import { handleChunk, handleControl, onPeerGone } from '../transfer/manager'
@@ -85,13 +88,19 @@ export function waitForControl(
  * side's channel exists; repeating it makes the introduction order-independent.
  */
 export function sendUntil(link: PeerLink, msg: ControlMessage, until: Promise<unknown>, everyMs = 1000): void {
-  link.sendControl(msg)
+  let sent = 0
+  const send = () => {
+    link.sendControl(msg)
+    sent++
+    if (sent === 1 || sent % 5 === 0) L.debug(`tx ${msg.type} (${sent}×)`, { dc: link.open ? 'open' : 'not open', buffered: link.bufferedAmount })
+  }
+  send()
   const timer = window.setInterval(() => {
     if (!link.open) {
       window.clearInterval(timer)
       return
     }
-    link.sendControl(msg)
+    send()
   }, everyMs)
   const stop = () => window.clearInterval(timer)
   until.then(stop, stop)
@@ -187,9 +196,17 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
       }
   setPeer(peer)
   if (!existing) toast(`${peer.name} joined`)
+  L.info(existing ? `extra link to ${peer.name}` : `peer attached: ${peer.name}`, {
+    links: peer.links.length,
+    paired: peer.paired,
+    locked: peer.passwordVerified,
+    code: peer.verificationCode,
+    platform: `${peer.platform} · ${peer.browser}`,
+  })
 
   // Exactly one side restarts ICE on trouble, to avoid offer glare.
   link.restartsIce = deviceId.value < id
+  L.debug(`${peer.name}: this side ${link.restartsIce ? 'will' : 'will not'} drive ICE restarts`)
 
   const armStale = () => {
     const t = linkTimers.get(link)
@@ -199,11 +216,19 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
     t.stale = window.setTimeout(() => {
       // Quiet for 15 s: show it as reconnecting, keep the link.
       const p = getPeer(id)
-      if (p && !p.links.some((l) => l !== link && l.health === 'open')) updatePeer(id, { online: false })
+      if (p && !p.links.some((l) => l !== link && l.health === 'open')) {
+        L.warn(`${p.name}: no ping for ${PEER_TIMEOUT_MS / 1000} s, marking reconnecting`)
+        updatePeer(id, { online: false })
+      }
     }, PEER_TIMEOUT_MS)
-    t.silence = window.setTimeout(() => link.close(), LINK_SILENCE_CLOSE_MS)
+    t.silence = window.setTimeout(() => {
+      L.warn(`${getPeer(id)?.name ?? id.slice(0, 8)}: silent for ${LINK_SILENCE_CLOSE_MS / 1000} s, closing link`)
+      link.close()
+    }, LINK_SILENCE_CLOSE_MS)
   }
   const touch = () => {
+    const p = getPeer(id)
+    if (p && !p.online) L.info(`${p.name}: heard again, back online`)
     updatePeer(id, { lastSeen: Date.now(), online: true, goneAt: null })
     armStale()
   }
@@ -216,7 +241,12 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
   })
   armStale()
 
-  link.onHealth = () => refreshOnline(id)
+  link.onHealth = (h) => {
+    const p = getPeer(id)
+    if (h === 'degraded') L.warn(`${p?.name ?? id.slice(0, 8)}: ICE disconnected, waiting / restarting in the background`)
+    else if (h === 'open') L.info(`${p?.name ?? id.slice(0, 8)}: ICE connected again`)
+    refreshOnline(id)
+  }
   link.onControl = (msg) => {
     touch()
     if (msg.type === 'ping') return
@@ -237,17 +267,20 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
     if (!p) return
     const links = p.links.filter((l) => l !== link)
     if (links.some((l) => l.open)) {
+      L.info(`${p.name}: one link closed, ${links.length} left`)
       updatePeer(id, { links })
       refreshOnline(id)
       return
     }
     // Last link gone: transfers on it cannot continue, but the device stays on screen for a while.
+    L.warn(`${p.name}: last link closed, keeping it listed for ${PEER_GRACE_MS / 1000} s`)
     onPeerGone(p, link)
     updatePeer(id, { links, online: false, goneAt: Date.now() })
     const timer = window.setTimeout(() => {
       graceTimers.delete(id)
       const cur = getPeer(id)
       if (!cur || cur.links.some((l) => l.open)) return
+      L.info(`${cur.name}: grace period over, removed`)
       removePeer(id)
       toast(`${cur.name} left`)
     }, PEER_GRACE_MS)
@@ -259,7 +292,13 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
 /** Same-network introduction: both sides say hello straight away. */
 export async function introduceDiscovery(link: PeerLink): Promise<void> {
   await link.ready
-  const theirs = waitForControl(link, PEER_TIMEOUT_MS, isHello)
+  L.debug('channel open, exchanging hello', { ice: link.pc.iceConnectionState, sctp: link.pc.sctp?.state })
+  // The first handler attached receives anything that arrived early, so the waiter must be first.
+  const theirs = waitForControl(link, PEER_TIMEOUT_MS, (m) => {
+    if (isHello(m)) L.debug(`rx hello from ${String(m.name)}`)
+    else L.debug(`rx ${m.type} before hello`)
+    return isHello(m)
+  })
   sendUntil(link, helloMessage(), theirs)
   const hello = (await theirs) as HelloMessage
   await attachPeer(link, hello, { paired: false, passwordVerified: false })

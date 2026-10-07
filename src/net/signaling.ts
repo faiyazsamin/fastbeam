@@ -1,6 +1,9 @@
 import { joinRoom, type Room } from 'trystero/nostr'
 import { APP_ID, ICE_SERVERS, RELAY_REDUNDANCY, RELAY_URLS } from '../config'
+import { logger } from '../state/log'
 import { PatientPeerConnection } from './patientPc'
+
+const L = logger('signal')
 
 export interface RoomHandlers {
   onPeer(peerId: string, pc: RTCPeerConnection): void
@@ -32,18 +35,26 @@ export const trysteroSignaling: Signaling = {
       },
       roomId,
       {
-        onJoinError: (d) => handlers.onError?.(d.error, d.peerId),
+        onJoinError: (d) => {
+          L.warn(`join error in ${roomId.slice(0, 8)}`, { error: d.error, peerId: d.peerId.slice(0, 8) })
+          handlers.onError?.(d.error, d.peerId)
+        },
       },
     )
+    L.debug(`relay room ${roomId.slice(0, 8)}… joined`)
     room.onPeerJoin = (peerId) => {
       const pc = room.getPeers()[peerId]
       if (pc) handlers.onPeer(peerId, pc)
+      else L.warn(`peer ${peerId.slice(0, 8)} joined without a connection object`)
     }
     room.onPeerLeave = (peerId) => handlers.onPeerLeave(peerId)
     return {
       roomId,
       peers: () => room.getPeers(),
-      leave: () => room.leave(),
+      leave: () => {
+        L.debug(`relay room ${roomId.slice(0, 8)}… left`)
+        return room.leave()
+      },
     }
   },
 }

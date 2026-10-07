@@ -2,7 +2,11 @@
 import { initDiscovery } from './net/discovery'
 import { codeFromHash, joinWithCode } from './net/pairing'
 import { initSessionBroadcast } from './net/session'
+import { device, deviceId } from './state/identity'
+import { logger } from './state/log'
 import { peers } from './state/peers'
+
+const L = logger('boot')
 import { addPendingFiles, dragging, hasPending, pendingText } from './state/ui'
 import { initTransferGuards } from './transfer/manager'
 import { onPairedDefault } from './ui/sheets/PairSheet'
@@ -31,6 +35,7 @@ async function consumeShareTarget(): Promise<void> {
       }
     }
     await caches.delete(SHARE_CACHE)
+    L.info(`share target delivered ${files.length} file(s)${text ? ' + text' : ''}`)
     if (files.length) addPendingFiles(files)
     else if (text) pendingText.value = text
   } catch {
@@ -82,11 +87,19 @@ function initDragAndPaste(): void {
 function consumePairLink(): void {
   const code = codeFromHash(location.hash)
   if (!code) return
+  L.info(`opened with pairing link for code ${code}`)
   history.replaceState(history.state, '', location.pathname + location.search)
   joinWithCode(code, { intent: hasPending(), onPaired: onPairedDefault })
 }
 
 export function boot(): void {
+  L.info(`fastbeam ${__APP_VERSION__} starting`, {
+    device: deviceId.value.slice(0, 8),
+    platform: `${device.platform} · ${device.browser}`,
+    type: device.deviceType,
+    standalone: window.matchMedia('(display-mode: standalone)').matches,
+    secure: window.isSecureContext,
+  })
   initSessionBroadcast()
   initTransferGuards()
   initDragAndPaste()

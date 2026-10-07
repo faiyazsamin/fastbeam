@@ -1,8 +1,9 @@
 import { REPO_URL } from '../../config'
+import { consoleOpen } from '../../state/log'
 import { NAT_LABEL, nat, type NatResult } from '../../state/network'
 import { navigate } from '../../state/router'
 import { IconButton } from './Controls'
-import { GithubIcon, Mark, SlidersIcon, Wordmark } from './Icons'
+import { GithubIcon, Mark, SlidersIcon, TerminalIcon, Wordmark } from './Icons'
 
 const TONE: Record<NatResult, string> = {
   checking: '',
@@ -32,6 +33,15 @@ export function Header() {
       </div>
       <div class="header-right">
         <NetworkBadge />
+        <IconButton
+          label={consoleOpen.value ? 'Hide status console' : 'Show status console'}
+          class="header-console"
+          aria-pressed={consoleOpen.value}
+          title="Status console (Ctrl/⌘ + `)"
+          onClick={() => (consoleOpen.value = !consoleOpen.value)}
+        >
+          <TerminalIcon />
+        </IconButton>
         <a
           class="iconbtn header-gh"
           href={REPO_URL}

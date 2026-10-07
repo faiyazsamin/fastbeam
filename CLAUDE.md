@@ -82,6 +82,11 @@ All five milestones are built in one pass (user's call on Oct 7, 2026). Remainin
 - The first control frame in each direction is repeated every second until answered (`sendUntil`), because a
   negotiated channel is created independently per side and an early frame can arrive before the other side's
   channel exists.
+- Chrome can deliver frames queued for a late-created negotiated channel *before* its "open" event. `PeerLink`
+  therefore buffers control frames until the first `onControl` handler is attached and flushes them into it.
+  Rule: the first handler attached to a fresh link must be the real waiter (`waitForControl`), never a debug tap.
+- Status console (desktop header button, Ctrl/⌘ + `): `state/log.ts` ring buffer; `logger('scope')` in net,
+  pairing, transfer and boot code. Use it first when discovery or pairing misbehaves.
 - Browsers cannot dial a peer by IP: every new WebRTC connection needs an SDP exchange through signaling.
   ICE restart on the existing connection is the closest thing and keeps the direct LAN path.
 - Dev server only: `fastbeam.killConnections()` / `fastbeam.dropLinks()` in the console simulate drops.

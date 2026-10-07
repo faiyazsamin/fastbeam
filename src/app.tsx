@@ -4,6 +4,7 @@ import { screen } from './state/router'
 import { toast } from './state/toast'
 import { sheet, textReceived } from './state/ui'
 import { clearIncoming, clearOutgoing, incoming, outgoing } from './transfer/manager'
+import { Console } from './ui/components/Console'
 import { IncomingDialog } from './ui/components/IncomingDialog'
 import { MediaViewer } from './ui/components/MediaViewer'
 import { TextReceivedDialog } from './ui/components/TextReceivedDialog'
@@ -92,6 +93,7 @@ export function App() {
       <IncomingDialog />
       <TextReceivedDialog />
       <MediaViewer />
+      <Console />
       <Toasts />
     </>
   )

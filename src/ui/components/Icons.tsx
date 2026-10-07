@@ -234,6 +234,12 @@ export const ExternalIcon = (p: IconProps) => (
     <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
   </Stroke>
 )
+export const TerminalIcon = (p: IconProps) => (
+  <Stroke {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M7 9l3 3-3 3M12 15h5" />
+  </Stroke>
+)
 export const InfoIcon = (p: IconProps) => (
   <Stroke size={18} strokeWidth={2} {...p}>
     <circle cx="12" cy="12" r="9" />

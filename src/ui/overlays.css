@@ -2012,6 +2012,200 @@ img.viewer-media {
   opacity: 1;
 }
 
+/* ---------- Status console (desktop) ---------- */
+
+.header-console {
+  display: none;
+}
+
+.header-console[aria-pressed='true'] {
+  color: var(--link);
+}
+
+@media (min-width: 900px) {
+  .header-console {
+    display: inline-flex;
+  }
+}
+
+.console {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(40vh, 420px);
+  display: flex;
+  flex-direction: column;
+  background: #0a1415;
+  color: #c5d4d3;
+  border-top: 1px solid #24393b;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
+  z-index: 25;
+  font-size: 12.5px;
+}
+
+.console-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 8px 6px 14px;
+  border-bottom: 1px solid #24393b;
+  flex: none;
+  min-height: 44px;
+}
+
+.console-title {
+  color: #4dd0cc;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.console-status {
+  flex: 1;
+  min-width: 0;
+  color: #93a9a8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 12px;
+}
+
+.console-status b {
+  color: #e4efee;
+  font-weight: 700;
+}
+
+.console-tools {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.console-filter,
+.console-select {
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #24393b;
+  background: #122023;
+  color: #e4efee;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.console-filter {
+  width: 150px;
+}
+
+.console-filter:focus,
+.console-select:focus {
+  outline: 0;
+  border-color: #4dd0cc;
+}
+
+.console-btn {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid #24393b;
+  color: #e4efee;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.console-btn:hover,
+.console-btn[aria-pressed='true'] {
+  background: #16302f;
+  border-color: #4dd0cc;
+}
+
+.console-close {
+  width: 36px;
+  height: 36px;
+  color: #e4efee;
+}
+
+.console-close::before {
+  background: transparent;
+}
+
+.console-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 0 10px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.console-empty {
+  padding: 14px;
+  color: #93a9a8;
+}
+
+.console-line {
+  display: grid;
+  grid-template-columns: 96px 44px 72px 1fr;
+  gap: 10px;
+  padding: 0 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.console-line:hover {
+  background: #0f1c1e;
+}
+
+.console-t {
+  color: #6f8786;
+}
+
+.console-lvl {
+  text-transform: uppercase;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  align-self: baseline;
+  padding-top: 2px;
+}
+
+.console-scope {
+  color: #93a9a8;
+}
+
+.console-msg {
+  color: #e4efee;
+}
+
+.console-data {
+  color: #93a9a8;
+}
+
+.is-debug .console-lvl,
+.is-debug .console-msg {
+  color: #93a9a8;
+}
+
+.is-info .console-lvl {
+  color: #4dd0cc;
+}
+
+.is-warn .console-lvl {
+  color: #ffd58a;
+}
+
+.is-warn .console-msg {
+  color: #ffd58a;
+}
+
+.is-error .console-lvl,
+.is-error .console-msg {
+  color: #ff8a80;
+}
+
 /* ---------- Drag state ---------- */
 
 .shell--dragging .tile {

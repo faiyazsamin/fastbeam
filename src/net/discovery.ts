@@ -1,7 +1,10 @@
 /** Auto-discovery: STUN probe → room keys → join; re-run on network changes. */
 import { signal } from '@preact/signals'
 import { REDISCOVER_HIDDEN_MS } from '../config'
+import { logger } from '../state/log'
 import { nat } from '../state/network'
+
+const L = logger('discover')
 import { roomId } from './hash'
 import { createPeerLink } from './peerLink'
 import { introduceDiscovery } from './session'
@@ -23,13 +26,21 @@ async function roomIdsFor(p: ProbeResult): Promise<string[]> {
 }
 
 function joinDiscoveryRoom(id: string): RoomHandle {
+  L.info(`joining room ${id.slice(0, 8)}…`)
   return trysteroSignaling.join(id, {
-    onPeer(_peerId, pc) {
+    onPeer(peerId, pc) {
+      L.info(`peer connected in ${id.slice(0, 8)}`, { peerId: peerId.slice(0, 8), ice: pc.iceConnectionState })
       const link = createPeerLink(pc)
-      introduceDiscovery(link).catch(() => link.close())
+      introduceDiscovery(link).catch((err: unknown) => {
+        L.warn(`introduction failed for ${peerId.slice(0, 8)}`, err)
+        link.close()
+      })
     },
-    onPeerLeave() {
-      /* the data channel close handles cleanup */
+    onPeerLeave(peerId) {
+      L.debug(`signaling says peer left ${id.slice(0, 8)}`, peerId.slice(0, 8))
+    },
+    onError(error, peerId) {
+      L.warn(`room ${id.slice(0, 8)} error`, { error, peerId: peerId.slice(0, 8) })
     },
   })
 }
@@ -42,20 +53,26 @@ export function runDiscovery(): Promise<void> {
   running = (async () => {
     probing.value = true
     nat.value = 'checking'
+    L.info('STUN probe starting')
+    const t0 = Date.now()
     let probe: ProbeResult
     try {
       probe = await stunProbe()
-    } catch {
+    } catch (err) {
+      L.error('STUN probe threw', err)
       probe = { nat: 'unknown' }
     }
     lastProbe.value = probe
     nat.value = probe.nat
     probing.value = false
+    L.info(`STUN probe done in ${Date.now() - t0} ms`, { nat: probe.nat, ipv4: probe.ipv4, ipv6Prefix: probe.ipv6Prefix })
 
     const wanted = new Set(await roomIdsFor(probe))
+    if (wanted.size === 0) L.warn('no network key: auto-discovery unavailable, codes still work')
     for (const [id, handle] of rooms) {
       if (!wanted.has(id)) {
         rooms.delete(id)
+        L.info(`leaving room ${id.slice(0, 8)}… (key changed)`)
         void handle.leave()
       }
     }
@@ -72,14 +89,24 @@ export function runDiscovery(): Promise<void> {
 export function initDiscovery(): void {
   void runDiscovery()
 
-  window.addEventListener('online', () => void runDiscovery())
+  window.addEventListener('online', () => {
+    L.info('browser back online: re-running discovery')
+    void runDiscovery()
+  })
+  window.addEventListener('offline', () => L.warn('browser reports offline'))
 
   const conn = (navigator as Navigator & { connection?: EventTarget }).connection
-  conn?.addEventListener('change', () => void runDiscovery())
+  conn?.addEventListener('change', () => {
+    L.info('network change event: re-running discovery')
+    void runDiscovery()
+  })
 
   let hiddenAt = 0
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') hiddenAt = Date.now()
-    else if (hiddenAt && Date.now() - hiddenAt > REDISCOVER_HIDDEN_MS) void runDiscovery()
+    else if (hiddenAt && Date.now() - hiddenAt > REDISCOVER_HIDDEN_MS) {
+      L.info(`tab visible after ${Math.round((Date.now() - hiddenAt) / 1000)} s hidden: re-running discovery`)
+      void runDiscovery()
+    }
   })
 }
