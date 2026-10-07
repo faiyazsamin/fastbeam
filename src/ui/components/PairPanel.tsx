@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks'
 import { codeFromText, host, isValidCode, joinWithCode, normalizeCodeInput } from '../../net/pairing'
 import { hasPending, openPairSheet } from '../../state/ui'
 import { Button, IconButton } from './Controls'
-import { CopyIcon } from './Icons'
+import { CopyIcon, QrIcon } from './Icons'
 import { copyCode, copyLink, onPairedDefault, useHosting } from '../sheets/PairSheet'
 
 /** Screen 13's side panel: the code is always on show on desktop; QR and password open the full sheet. */
@@ -44,13 +44,13 @@ export function PairPanel() {
           <IconButton label="Copy code" class="code-copy" disabled={!h} onClick={() => h && void copyCode(h.code)}>
             <CopyIcon size={18} />
           </IconButton>
+          <IconButton label="Show QR code" class="code-copy" disabled={!h} onClick={() => openPairSheet('show')}>
+            <QrIcon size={18} />
+          </IconButton>
         </div>
-        <div class="pair-panel-actions">
+        <div class="pair-panel-actions pair-panel-actions--two">
           <Button variant="secondary" class="btn--sm" disabled={!h} onClick={() => h && void copyLink(h.code)}>
             Copy link
-          </Button>
-          <Button variant="secondary" class="btn--sm" onClick={() => openPairSheet('show')}>
-            Show QR
           </Button>
           <Button variant="secondary" class="btn--sm" onClick={() => openPairSheet('show')}>
             {h?.locked ? 'Password on' : 'Add password'}

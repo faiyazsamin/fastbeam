@@ -234,6 +234,14 @@ export const ExternalIcon = (p: IconProps) => (
     <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
   </Stroke>
 )
+export const QrIcon = (p: IconProps) => (
+  <Stroke size={20} strokeWidth={2} {...p}>
+    <rect x="3" y="3" width="7" height="7" rx="1.5" />
+    <rect x="14" y="3" width="7" height="7" rx="1.5" />
+    <rect x="3" y="14" width="7" height="7" rx="1.5" />
+    <path d="M14 14h3v3h-3zM20 14h1M14 20h1M18 18h3v3" />
+  </Stroke>
+)
 export const TerminalIcon = (p: IconProps) => (
   <Stroke {...p}>
     <rect x="3" y="4" width="18" height="16" rx="2" />
