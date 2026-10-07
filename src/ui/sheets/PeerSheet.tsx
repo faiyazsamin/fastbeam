@@ -6,7 +6,8 @@ import { toast } from '../../state/toast'
 import { closeSheet, openSendSheet } from '../../state/ui'
 import { AutoAcceptRow } from '../components/AutoAcceptRow'
 import { Button, IconButton } from '../components/Controls'
-import { CloseIcon, DeviceIcon, LockIcon, ShieldIcon } from '../components/Icons'
+import { DeviceAvatar } from '../components/DeviceGlyph'
+import { CloseIcon, LockIcon, ShieldIcon } from '../components/Icons'
 import { Sheet } from '../components/Sheet'
 
 const TYPE_LABEL = { phone: 'Phone', tablet: 'Tablet', desktop: 'Computer' } as const
@@ -58,9 +59,7 @@ export function PeerSheet({ peerId }: { peerId: string }) {
   return (
     <Sheet label={`About ${peer.name}`} onClose={closeSheet} tall={false}>
       <div class="sheet-head">
-        <span class="avatar">
-          <DeviceIcon type={peer.deviceType} />
-        </span>
+        <DeviceAvatar peer={peer} size={48} />
         <div class="sheet-head-text">
           <h2 class="sheet-title">{peer.name}</h2>
           <div class="chips">

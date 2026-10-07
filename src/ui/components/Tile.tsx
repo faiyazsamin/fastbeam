@@ -1,7 +1,8 @@
 import { useState } from 'preact/hooks'
 import { PROTOCOL } from '../../config'
 import { peerSubtitle, type Peer } from '../../state/peers'
-import { DeviceIcon, DownloadIcon, InfoIcon, LockIcon } from './Icons'
+import { DeviceAvatar } from './DeviceGlyph'
+import { DownloadIcon, InfoIcon, LockIcon } from './Icons'
 
 export function Tile({
   peer,
@@ -47,12 +48,21 @@ export function Tile({
             {peer.passwordVerified ? 'Paired · locked' : 'Paired'}
           </span>
         )}
-        <span class="tile-icon">{over ? <DownloadIcon /> : <DeviceIcon type={peer.deviceType} />}</span>
+        {over ? (
+          <span class="tile-icon">
+            <DownloadIcon />
+          </span>
+        ) : (
+          <DeviceAvatar peer={peer} size={48} />
+        )}
         <span class="tile-text">
           <span class="tile-name">{over ? `Drop to send ${over} ${over === 1 ? 'file' : 'files'}` : peer.name}</span>
-          <span class="tile-sub">
-            {over ? `to ${peer.name} · ${peer.platform}` : outdated ? 'Update needed' : away ? 'Reconnecting…' : peerSubtitle(peer)}
-          </span>
+          <span class="tile-sub">{over ? `to ${peer.name} · ${peer.platform}` : peerSubtitle(peer)}</span>
+          {!over && (outdated || away) && (
+            <span class={`tile-state${outdated ? ' tile-state--warn' : ''}`}>
+              {outdated ? 'Update needed' : 'Reconnecting…'}
+            </span>
+          )}
         </span>
       </button>
       {!over && (

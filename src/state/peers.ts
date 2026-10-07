@@ -1,11 +1,13 @@
 import { computed, signal } from '@preact/signals'
 import type { PeerLink } from '../net/peerLink'
-import type { DeviceType } from './device'
+import type { DeviceOs, DeviceType } from './device'
 
 export interface Peer {
   deviceId: string
   name: string
   deviceType: DeviceType
+  /** Missing for peers running a build that predates the field; infer from `platform` then. */
+  os?: DeviceOs
   platform: string
   browser: string
   protocol: number

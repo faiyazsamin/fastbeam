@@ -299,13 +299,58 @@
   border-style: dashed;
 }
 
-.tile--away .tile-icon {
+.tile--away .device-avatar {
   background: var(--chip);
   color: var(--muted);
 }
 
-.tile--away .tile-sub {
+.tile-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--warn-ink);
+}
+
+.tile-state::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tile-state::before {
+    animation: fb-dot 1.4s ease-in-out infinite;
+  }
+}
+
+/* Platform avatar with a browser badge in the corner */
+
+.device-avatar {
+  position: relative;
+  overflow: visible;
+}
+
+.device-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  border: 1.5px solid var(--line);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.tile--over .device-badge {
+  display: none;
 }
 
 .tile-icon {

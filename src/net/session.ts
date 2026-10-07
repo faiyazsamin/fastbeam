@@ -9,7 +9,7 @@
  */
 import { effect } from '@preact/signals'
 import { LINK_SILENCE_CLOSE_MS, PEER_GRACE_MS, PEER_TIMEOUT_MS, PING_INTERVAL_MS, PROTOCOL } from '../config'
-import type { DeviceType } from '../state/device'
+import type { DeviceOs, DeviceType } from '../state/device'
 import { device, deviceId } from '../state/identity'
 import { logger } from '../state/log'
 import { getPeer, peers, removePeer, setPeer, updatePeer, type Peer } from '../state/peers'
@@ -26,6 +26,7 @@ export interface HelloMessage extends ControlMessage {
   deviceId: string
   name: string
   deviceType: DeviceType
+  os?: DeviceOs
   platform: string
   browser: string
   protocol: number
@@ -38,6 +39,7 @@ export function helloMessage(): HelloMessage {
     deviceId: deviceId.value,
     name: deviceName.value,
     deviceType: device.deviceType,
+    os: device.os,
     platform: device.platform,
     browser: device.browser,
     protocol: PROTOCOL,
@@ -165,6 +167,7 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
         ...existing,
         name: cleanName(hello.name),
         deviceType: hello.deviceType,
+        ...(hello.os ? { os: hello.os } : {}),
         platform: hello.platform,
         browser: hello.browser,
         protocol: hello.protocol,
@@ -181,6 +184,7 @@ export async function attachPeer(link: PeerLink, hello: HelloMessage, flags: Att
         deviceId: id,
         name: cleanName(hello.name),
         deviceType: hello.deviceType,
+        ...(hello.os ? { os: hello.os } : {}),
         platform: hello.platform,
         browser: hello.browser,
         protocol: hello.protocol,

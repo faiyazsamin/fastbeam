@@ -9,7 +9,8 @@ import { closeSheet, pendingFiles, pendingText, type SendTab } from '../../state
 import { startSend } from '../../transfer/manager'
 import { formatBytes } from '../../transfer/protocol'
 import { Button, IconButton } from '../components/Controls'
-import { CloseIcon, DeviceIcon, FileIcon, FolderIcon, ImageIcon, VideoIcon } from '../components/Icons'
+import { DeviceAvatar } from '../components/DeviceGlyph'
+import { CloseIcon, FileIcon, FolderIcon, ImageIcon, VideoIcon } from '../components/Icons'
 import { Sheet, Tabs } from '../components/Sheet'
 
 const TABS = [
@@ -103,9 +104,7 @@ export function SendSheet({ peerId, tab: initialTab }: { peerId: string; tab: Se
   return (
     <Sheet label={`Send to ${peer.name}`} onClose={closeSheet}>
       <div class="sheet-head">
-        <span class="avatar">
-          <DeviceIcon type={peer.deviceType} />
-        </span>
+        <DeviceAvatar peer={peer} size={48} />
         <div class="sheet-head-text">
           <h2 class="sheet-title">Send to {peer.name}</h2>
           <div class="row-sub">

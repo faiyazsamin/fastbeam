@@ -5,6 +5,7 @@ import { incomingOffer } from '../../transfer/manager'
 import { formatBytes } from '../../transfer/protocol'
 import { AutoAcceptRow } from './AutoAcceptRow'
 import { Button } from './Controls'
+import { DeviceAvatar } from './DeviceGlyph'
 import { DeviceIcon, LockIcon, ShieldIcon } from './Icons'
 
 /** Screen 4. Native <dialog> so Esc and focus containment come for free; Accept is never auto-focused. */
@@ -63,9 +64,13 @@ export function IncomingDialog() {
       </div>
       <div class="incoming-body">
         <div class="incoming-head">
-          <span class="avatar avatar--lg">
-            <DeviceIcon type={peer?.deviceType ?? 'desktop'} size={28} />
-          </span>
+          {peer ? (
+            <DeviceAvatar peer={peer} size={56} />
+          ) : (
+            <span class="avatar avatar--lg">
+              <DeviceIcon type="desktop" size={28} />
+            </span>
+          )}
           <div>
             <h2 class="incoming-title">
               {s.peerName} wants to send you {what}

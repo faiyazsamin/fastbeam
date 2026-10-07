@@ -1,11 +1,25 @@
 export type DeviceType = 'phone' | 'tablet' | 'desktop'
+export type DeviceOs = 'ios' | 'macos' | 'windows' | 'android' | 'linux' | 'chromeos' | 'other'
 
 export interface DeviceInfo {
   deviceType: DeviceType
+  os: DeviceOs
   /** Short platform label for tile subtitles: "Mac", "Pixel 8", "iPad", "Windows". */
   platform: string
   /** Browser name and major version: "Chrome 129". */
   browser: string
+}
+
+/** Best guess at the OS from a platform label, for peers that predate the `os` field. */
+export function osFromPlatform(platform: string, deviceType: DeviceType): DeviceOs {
+  const p = platform.toLowerCase()
+  if (/iphone|ipad|ipod/.test(p)) return 'ios'
+  if (/^mac/.test(p)) return 'macos'
+  if (/windows/.test(p)) return 'windows'
+  if (/android|pixel|galaxy|^sm-|oneplus|xiaomi|redmi|moto/.test(p)) return 'android'
+  if (/chromebook|cros/.test(p)) return 'chromeos'
+  if (/linux/.test(p)) return 'linux'
+  return deviceType === 'desktop' ? 'other' : 'android'
 }
 
 export interface DeviceSignals {
@@ -46,31 +60,31 @@ export function describeDevice(s: DeviceSignals): DeviceInfo {
   const touch = s.maxTouchPoints ?? 0
   const browser = browserFrom(ua)
 
-  if (/\biPad\b/.test(ua)) return { deviceType: 'tablet', platform: 'iPad', browser }
-  if (/\biPhone\b/.test(ua)) return { deviceType: 'phone', platform: 'iPhone', browser }
-  if (/\biPod\b/.test(ua)) return { deviceType: 'phone', platform: 'iPod touch', browser }
+  if (/\biPad\b/.test(ua)) return { deviceType: 'tablet', os: 'ios', platform: 'iPad', browser }
+  if (/\biPhone\b/.test(ua)) return { deviceType: 'phone', os: 'ios', platform: 'iPhone', browser }
+  if (/\biPod\b/.test(ua)) return { deviceType: 'phone', os: 'ios', platform: 'iPod touch', browser }
 
   if (/\bAndroid\b/.test(ua)) {
     const isPhone = /\bMobile\b/.test(ua) || s.uaMobile === true
     const platform = androidModel(ua) ?? (isPhone ? 'Android phone' : 'Android tablet')
-    return { deviceType: isPhone ? 'phone' : 'tablet', platform, browser }
+    return { deviceType: isPhone ? 'phone' : 'tablet', os: 'android', platform, browser }
   }
 
   if (/\bMacintosh\b/.test(ua) || s.uaPlatform === 'macOS') {
     // iPadOS asks for desktop sites with a Mac UA; touch gives it away.
-    if (touch > 1) return { deviceType: 'tablet', platform: 'iPad', browser }
-    return { deviceType: 'desktop', platform: 'Mac', browser }
+    if (touch > 1) return { deviceType: 'tablet', os: 'ios', platform: 'iPad', browser }
+    return { deviceType: 'desktop', os: 'macos', platform: 'Mac', browser }
   }
   if (/\bWindows\b/.test(ua) || s.uaPlatform === 'Windows') {
-    return { deviceType: 'desktop', platform: 'Windows', browser }
+    return { deviceType: 'desktop', os: 'windows', platform: 'Windows', browser }
   }
   if (/\bCrOS\b/.test(ua) || s.uaPlatform === 'Chrome OS') {
-    return { deviceType: 'desktop', platform: 'Chromebook', browser }
+    return { deviceType: 'desktop', os: 'chromeos', platform: 'Chromebook', browser }
   }
   if (/\bLinux\b/.test(ua) || s.uaPlatform === 'Linux') {
-    return { deviceType: 'desktop', platform: 'Linux', browser }
+    return { deviceType: 'desktop', os: 'linux', platform: 'Linux', browser }
   }
-  return { deviceType: s.uaMobile ? 'phone' : 'desktop', platform: 'Device', browser }
+  return { deviceType: s.uaMobile ? 'phone' : 'desktop', os: 'other', platform: 'Device', browser }
 }
 
 interface NavigatorUAData {
