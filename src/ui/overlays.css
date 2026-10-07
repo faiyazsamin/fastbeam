@@ -1477,6 +1477,24 @@
   font-size: 32px;
 }
 
+.three-up {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.three-up .stat {
+  padding: 12px 12px;
+  min-width: 0;
+}
+
+.three-up .stat-value {
+  font-size: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .stat {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -2121,6 +2139,59 @@ img.viewer-media {
 .console-btn[aria-pressed='true'] {
   background: #16302f;
   border-color: #4dd0cc;
+}
+
+.console-btn--accent {
+  background: #16302f;
+  color: #4dd0cc;
+  border-color: #24393b;
+}
+
+.console-count--err {
+  color: #ff8a80;
+  font-weight: 700;
+}
+
+.console-count--warn {
+  color: #ffd58a;
+}
+
+/* Phones: full-height sheet, wrapped toolbar, hide the status strip (it is in Copy recent anyway). */
+@media (max-width: 899px) {
+  .console {
+    height: 72dvh;
+    font-size: 12px;
+  }
+  .console-head {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 8px 8px 12px;
+  }
+  .console-status {
+    display: none;
+  }
+  .console-tools {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .console-filter {
+    flex: 1;
+    min-width: 100px;
+  }
+  .console-line {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 4px 12px;
+    border-bottom: 1px solid #122023;
+  }
+  .console-t::after {
+    content: ' ';
+  }
+  .console-lvl,
+  .console-scope {
+    display: inline;
+    margin-right: 8px;
+  }
 }
 
 .console-close {

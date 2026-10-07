@@ -1,7 +1,10 @@
 import { signal, type Signal } from '@preact/signals'
 import { BLOB_WARN_BYTES, OFFER_TIMEOUT_MS, PROGRESS_EVERY } from '../config'
 import type { PeerLink } from '../net/peerLink'
+import { logger } from '../state/log'
 import type { Peer } from '../state/peers'
+
+const L = logger('recv')
 import { chooseSinkKind, createSink, type SavedFile, type Sink, type SinkKind } from './sinks'
 import { SpeedMeter } from './speed'
 import { decodeChunk, type DeclineReason, type FileMeta, type OfferMessage, type TransferMessage } from './protocol'
@@ -114,8 +117,9 @@ export class IncomingTransfer {
     const sink = createSink(s.sinkKind)
     try {
       await sink.prepare(s.files)
-    } catch {
-      // Picker dismissed: treat as a decline.
+    } catch (err) {
+      // Picker dismissed or sink unavailable: treat as a decline.
+      L.warn(`sink ${s.sinkKind} could not start: ${err instanceof Error ? err.message : String(err)}`)
       this.decline('declined')
       return
     }
@@ -150,6 +154,10 @@ export class IncomingTransfer {
   private enqueue(fn: () => Promise<void>): void {
     this.chain = this.chain.then(fn).catch((err: unknown) => {
       if (!this.closed) {
+        L.error(`receive failed: ${err instanceof Error ? err.message : String(err)}`, {
+          file: this.snap.value.files[this.current]?.name,
+          received: this.received,
+        })
         void this.sink?.abort()
         this.link.sendControl({ type: 'cancel', transferId: this.id, by: 'receiver' })
         this.settle({ state: 'failed', error: err instanceof Error ? err.message : String(err) })
@@ -184,6 +192,7 @@ export class IncomingTransfer {
         if (idx < 0) return
         this.enqueue(async () => {
           this.current = idx
+          L.debug(`file ${idx + 1}/${s.files.length} starting: ${s.files[idx]?.name}`)
           await this.sink?.startFile(idx)
         })
         return
@@ -192,9 +201,12 @@ export class IncomingTransfer {
         const idx = s.files.findIndex((f) => f.fileId === msg.fileId)
         if (idx < 0) return
         this.enqueue(async () => {
-          await this.sink?.endFile(idx)
           const got = this.perFile[idx] ?? 0
-          if (got !== msg.bytes) throw new Error(`size mismatch for ${s.files[idx]?.name}`)
+          L.debug(`file-end for ${s.files[idx]?.name}: ${got}/${msg.bytes} bytes written, closing sink`)
+          const t0 = Date.now()
+          await this.sink?.endFile(idx)
+          L.debug(`sink closed ${s.files[idx]?.name} in ${Date.now() - t0} ms`)
+          if (got !== msg.bytes) throw new Error(`size mismatch for ${s.files[idx]?.name}: got ${got}, expected ${msg.bytes}`)
           this.sendProgress(idx, true)
           this.patch({ files: this.snap.value.files.map((f, i) => (i === idx ? { ...f, received: got, complete: true } : f)) })
         })
@@ -202,6 +214,7 @@ export class IncomingTransfer {
       }
       case 'done': {
         this.enqueue(async () => {
+          L.debug('sender says done, finishing sink')
           const saved = (await this.sink?.finish()) ?? []
           this.settle({
             state: 'done',

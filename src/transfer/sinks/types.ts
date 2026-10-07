@@ -1,6 +1,6 @@
 import type { FileMeta } from '../protocol'
 
-export type SinkKind = 'fs' | 'sw' | 'blob'
+export type SinkKind = 'fs' | 'sw' | 'opfs' | 'blob'
 
 export interface SavedFile {
   name: string

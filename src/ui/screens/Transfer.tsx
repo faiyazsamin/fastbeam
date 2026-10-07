@@ -35,8 +35,19 @@ interface View {
   done: number
   speed: number
   eta: number | null
+  startedAt: number | null
+  /** Sender only: everything is queued and we are waiting for the receiver to confirm the tail. */
+  finishing: boolean
   rows: Row[]
   cancel: () => void
+}
+
+function formatElapsed(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const m = Math.floor(s / 60)
+  const h = Math.floor(m / 60)
+  if (h > 0) return `${h}:${String(m % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+  return `${m}:${String(s % 60).padStart(2, '0')}`
 }
 
 function currentView(): View | null {
@@ -47,9 +58,11 @@ function currentView(): View | null {
       peerName: o.peerName,
       peerId: o.peerId,
       total: o.totalSize,
-      done: o.sentBytes,
+      done: Math.min(o.sentBytes, o.ackedBytes + 4 * 1024 * 1024),
       speed: o.speed,
       eta: o.etaSeconds,
+      startedAt: o.startedAt,
+      finishing: o.sentBytes >= o.totalSize && o.ackedBytes < o.totalSize,
       rows: o.files.map((f) => ({ key: f.fileId, name: f.name, size: f.size, done: f.sent, complete: f.sent >= f.size })),
       cancel: () => outgoing.value?.cancel(),
     }
@@ -64,6 +77,8 @@ function currentView(): View | null {
       done: i.receivedBytes,
       speed: i.speed,
       eta: i.etaSeconds,
+      startedAt: i.startedAt,
+      finishing: false,
       rows: i.files.map((f) => ({ key: f.fileId, name: f.name, size: f.size, done: f.received, complete: f.complete })),
       cancel: () => incoming.value?.cancel(),
     }
@@ -78,14 +93,17 @@ const CIRC = 2 * Math.PI * R
 export function Progress() {
   const v = currentView()
   const [liveRows, setLiveRows] = useState<Row[]>(v?.rows ?? [])
+  const [now, setNow] = useState(Date.now())
   useEffect(() => {
     const t = window.setInterval(() => {
       const cur = currentView()
       if (cur) setLiveRows(cur.rows)
+      setNow(Date.now())
     }, 1000)
     return () => window.clearInterval(t)
   }, [])
   if (!v) return null
+  const elapsed = v.startedAt ? formatElapsed(now - v.startedAt) : '0:00'
   const pct = v.total > 0 ? Math.min(100, Math.floor((v.done / v.total) * 100)) : 0
   const dash = (pct / 100) * CIRC
   return (
@@ -116,16 +134,25 @@ export function Progress() {
         </div>
       </div>
 
-      <div class="two-up">
+      <div class="three-up">
         <div class="stat">
           <div class="row-sub">Speed</div>
           <div class="mono stat-value">{v.speed > 0 ? `${formatBytes(v.speed)}/s` : '—'}</div>
         </div>
         <div class="stat">
+          <div class="row-sub">Elapsed</div>
+          <div class="mono stat-value">{elapsed}</div>
+        </div>
+        <div class="stat">
           <div class="row-sub">Time left</div>
-          <div class="mono stat-value">{v.eta !== null ? formatEta(v.eta) : '—'}</div>
+          <div class="mono stat-value">{v.finishing ? 'finishing' : v.eta !== null ? formatEta(v.eta) : '—'}</div>
         </div>
       </div>
+      {v.finishing && (
+        <div class="row-sub" style={{ textAlign: 'center' }} role="status">
+          Everything is sent. Waiting for {v.peerName} to finish writing it to disk…
+        </div>
+      )}
 
       <div class="card card--list filelist" aria-live="polite">
         {liveRows.map((r) => {

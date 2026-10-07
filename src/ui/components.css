@@ -260,6 +260,12 @@ a.iconbtn {
   color: var(--link);
 }
 
+.row--button {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+}
+
 .row-icon {
   width: 36px;
   height: 36px;

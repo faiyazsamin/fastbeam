@@ -1,3 +1,4 @@
+import { logger } from '../../state/log'
 import { mediaKind } from '../../state/media'
 import { sanitizeFileName, type FileMeta } from '../protocol'
 import { PREVIEW_MAX_BYTES, PREVIEW_TOTAL_MAX_BYTES, type SavedFile, type Sink } from './types'
@@ -6,12 +7,17 @@ import { PREVIEW_MAX_BYTES, PREVIEW_TOTAL_MAX_BYTES, type SavedFile, type Sink }
 export const SW_STREAM_PREFIX = '/fb-download/'
 export const SW_KEEPALIVE = '/fb-keepalive'
 const ACK_WINDOW = 8 * 1024 * 1024
+/** How long to wait for the worker to confirm the last byte before moving on anyway. */
+const CLOSE_TIMEOUT_MS = 60_000
+
+const L = logger('sink')
 
 export function swStreamSupported(): boolean {
   return typeof navigator !== 'undefined' && !!navigator.serviceWorker?.controller && typeof MessageChannel !== 'undefined'
 }
 
 interface Stream {
+  name: string
   port: MessagePort
   frame: HTMLIFrameElement
   unacked: number
@@ -19,6 +25,7 @@ interface Stream {
   done: Promise<void>
   resolveDone: () => void
   rejectDone: (e: Error) => void
+  lastAckAt: number
 }
 
 export class SwStreamSink implements Sink {
@@ -42,6 +49,7 @@ export class SwStreamSink implements Sink {
       return keep ? [] : null
     })
     this.keepalive = window.setInterval(() => void fetch(SW_KEEPALIVE, { cache: 'no-store' }).catch(() => {}), 10_000)
+    L.info('streaming to Downloads through the service worker', { files: files.length })
   }
 
   async startFile(index: number): Promise<void> {
@@ -57,6 +65,7 @@ export class SwStreamSink implements Sink {
       rejectDone = rej
     })
     const stream: Stream = {
+      name: meta.name,
       port: port1,
       frame: document.createElement('iframe'),
       unacked: 0,
@@ -64,6 +73,7 @@ export class SwStreamSink implements Sink {
       done,
       resolveDone,
       rejectDone,
+      lastAckAt: Date.now(),
     }
     const ready = new Promise<void>((resolve, reject) => {
       const t = window.setTimeout(() => reject(new Error('service worker did not answer')), 5000)
@@ -74,6 +84,7 @@ export class SwStreamSink implements Sink {
           resolve()
         } else if (m.type === 'ack') {
           stream.unacked -= m.bytes ?? 0
+          stream.lastAckAt = Date.now()
           if (stream.unacked < ACK_WINDOW) {
             const w = stream.waiters.splice(0)
             for (const fn of w) fn()
@@ -81,7 +92,7 @@ export class SwStreamSink implements Sink {
         } else if (m.type === 'done') {
           stream.resolveDone()
         } else if (m.type === 'cancelled') {
-          stream.rejectDone(new Error('download cancelled'))
+          stream.rejectDone(new Error('download cancelled by the browser'))
         }
       }
     })
@@ -94,6 +105,7 @@ export class SwStreamSink implements Sink {
     stream.frame.src = SW_STREAM_PREFIX + id
     document.body.appendChild(stream.frame)
     this.current = stream
+    L.debug(`download started for ${meta.name}`)
   }
 
   async write(index: number, data: Uint8Array): Promise<void> {
@@ -104,7 +116,17 @@ export class SwStreamSink implements Sink {
     s.unacked += data.byteLength
     s.port.postMessage({ type: 'chunk', buf: copy }, [copy])
     if (s.unacked >= ACK_WINDOW) {
-      await new Promise<void>((resolve) => s.waiters.push(resolve))
+      // The download consumer applies backpressure through acks; a dead consumer must not hang us forever.
+      await new Promise<void>((resolve, reject) => {
+        s.waiters.push(resolve)
+        const t = window.setInterval(() => {
+          if (Date.now() - s.lastAckAt > CLOSE_TIMEOUT_MS) {
+            window.clearInterval(t)
+            reject(new Error('the browser stopped reading the download'))
+          }
+        }, 5000)
+        s.waiters.push(() => window.clearInterval(t))
+      })
     }
   }
 
@@ -117,7 +139,17 @@ export class SwStreamSink implements Sink {
     const s = this.current
     if (!s) return
     s.port.postMessage({ type: 'end' })
-    await s.done
+    const t0 = Date.now()
+    try {
+      await Promise.race([
+        s.done,
+        new Promise<void>((_, reject) => window.setTimeout(() => reject(new Error('timeout')), CLOSE_TIMEOUT_MS)),
+      ])
+      L.debug(`download handed over for ${s.name} in ${Date.now() - t0} ms`)
+    } catch (err) {
+      // All bytes were posted; the download either finished without telling us or is still flushing.
+      L.warn(`no close confirmation for ${s.name}: ${err instanceof Error ? err.message : String(err)}; continuing`)
+    }
     window.setTimeout(() => s.frame.remove(), 15_000)
     s.port.close()
     this.current = null

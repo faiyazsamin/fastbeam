@@ -59,6 +59,12 @@ export function logger(scope: string) {
   }
 }
 
+/** A pasteable report: device summary plus the last `count` lines (all levels). */
+export function diagnosticsText(count: number, header: string[]): string {
+  const lines = logs.peek().slice(-count).map(formatLogLine)
+  return [...header, '', ...lines].join('\n')
+}
+
 export function formatLogLine(e: LogEntry): string {
   const d = new Date(e.t)
   const hh = String(d.getHours()).padStart(2, '0')

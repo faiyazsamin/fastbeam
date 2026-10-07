@@ -1,12 +1,26 @@
 import { FEEDBACK_EMAIL, ISSUES_URL, REPO_URL } from '../../config'
 import { probing, runDiscovery } from '../../net/discovery'
+import { copyDiagnostics } from '../../state/diagnostics'
 import { device } from '../../state/identity'
+import { consoleOpen } from '../../state/log'
 import { NAT_DETAIL, nat } from '../../state/network'
 import { goBack } from '../../state/router'
 import { deviceName, discoverable, NAME_MAX, setDeviceName, shuffleName, theme, type Theme } from '../../state/settings'
 import { Button, IconButton, Segmented, Switch } from '../components/Controls'
 import { NetworkBadge } from '../components/Header'
-import { BackIcon, BugIcon, ExternalIcon, GithubIcon, MailIcon } from '../components/Icons'
+import { BackIcon, BugIcon, CopyIcon, ExternalIcon, GithubIcon, MailIcon, TerminalIcon } from '../components/Icons'
+
+function ActionRow({ icon, title, sub, onClick }: { icon: preact.ComponentChildren; title: string; sub: string; onClick: () => void }) {
+  return (
+    <button type="button" class="row row--link row--button" onClick={onClick}>
+      <span class="row-icon">{icon}</span>
+      <span class="row-text">
+        <span class="row-title">{title}</span>
+        <span class="row-sub">{sub}</span>
+      </span>
+    </button>
+  )
+}
 
 function feedbackMailto(): string {
   const subject = encodeURIComponent('fastbeam feedback')
@@ -119,6 +133,23 @@ export function Settings() {
         <LinkRow href={ISSUES_URL} icon={<BugIcon />} title="Report a problem" sub="Open an issue on GitHub" />
         <LinkRow href={feedbackMailto()} icon={<MailIcon />} title="Send feedback" sub={FEEDBACK_EMAIL} />
         <LinkRow href={REPO_URL} icon={<GithubIcon size={20} />} title="Source code" sub="github.com/theanam/fastbeam" />
+      </section>
+
+      <section class="settings-section">
+        <h2>Troubleshooting</h2>
+        <p class="settings-note">
+          If something misbehaves, copy the diagnostics and paste them into an issue or an email. They contain the
+          last events (discovery, connections, transfers) and your device name, never your files.
+        </p>
+      </section>
+      <section class="card card--list">
+        <ActionRow icon={<CopyIcon />} title="Copy diagnostics" sub="Last 120 console lines plus a device summary" onClick={() => void copyDiagnostics(120)} />
+        <ActionRow
+          icon={<TerminalIcon size={20} />}
+          title={consoleOpen.value ? 'Hide status console' : 'Show status console'}
+          sub="Live log of everything fastbeam does"
+          onClick={() => (consoleOpen.value = !consoleOpen.value)}
+        />
       </section>
 
       <section class="settings-section">

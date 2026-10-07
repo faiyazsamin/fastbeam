@@ -45,7 +45,8 @@ src/
     sender.ts         offer → stream files with backpressure + 32 MiB ack window
     receiver.ts       offer dialog state → sink pipeline → done
     manager.ts        one incoming + one outgoing at a time, busy/decline, wake lock, beforeunload
-    sinks/            fsAccess (Chromium desktop), swStream (Chrome Android, Firefox), blob (iOS)
+    sinks/            fsAccess (Chromium desktop) → swStream (Chrome Android, Firefox) → opfs (Safari/iOS and
+                      anything with OPFS sync handles: private storage + disk-backed Save) → blob (last resort)
   state/              signals: storage, identity, settings, names, device, network, router, toast, peers, ui
   ui/                 tokens.css, base.css, components.css, screens.css, overlays.css
   ui/components/      Icons, Controls, Header, EditableName, Toasts, Sheet+Tabs, Tile, CodeBoxes, QrCode,
@@ -90,6 +91,17 @@ All five milestones are built in one pass (user's call on Oct 7, 2026). Remainin
 - Browsers cannot dial a peer by IP: every new WebRTC connection needs an SDP exchange through signaling.
   ICE restart on the existing connection is the closest thing and keeps the direct LAN path.
 - Dev server only: `fastbeam.killConnections()` / `fastbeam.dropLinks()` in the console simulate drops.
+
+## Large files and the receive pipeline
+- Sender reads with `file.stream()` in 64 KiB chunks; nothing is loaded whole. Backpressure: pause above 4 MiB
+  `bufferedAmount`, plus a 32 MiB window on receiver acks (`progress` every 1 MiB written).
+- Receiver sink order: File System Access → service-worker stream → OPFS → Blob. Only Blob holds the file in
+  memory. OPFS writes in a worker with sync access handles and hands back a disk-backed `File` for Save.
+- The service worker closes a download stream the moment the last chunk is enqueued; it must never wait for
+  another `pull`, because browsers stop pulling once Content-Length is reached (this was the 98–99 % stall).
+- The sender's "finishing" phase waits for the receiver's final ack as long as acks keep arriving, with a
+  120 s no-progress cap; the UI shows "finishing" and explains it is waiting on the other side's disk.
+- `fastbeam:sink` in localStorage forces a sink for tests; `scratchpad/shots/sinks.mjs` exercised opfs and sw.
 
 ## Trystero notes (verified against 0.26.0)
 - `getPeers()` returns `{ [peerId]: RTCPeerConnection }`; Trystero opens one non-negotiated channel labelled `"data"`, so a negotiated channel with `id: 42` is free.

@@ -9,7 +9,20 @@ import { peers } from './state/peers'
 const L = logger('boot')
 import { addPendingFiles, dragging, hasPending, pendingText } from './state/ui'
 import { initTransferGuards } from './transfer/manager'
+import { cleanupOpfs, probeOpfs } from './transfer/sinks'
 import { onPairedDefault } from './ui/sheets/PairSheet'
+
+/** Anything uncaught lands in the status console so users can copy it for a bug report. */
+function initErrorCapture(): void {
+  const L = logger('app')
+  window.addEventListener('error', (e) => {
+    L.error(`uncaught: ${e.message}`, e.filename ? `${e.filename.split('/').pop()}:${e.lineno}` : undefined)
+  })
+  window.addEventListener('unhandledrejection', (e) => {
+    const r: unknown = e.reason
+    L.error(`unhandled promise rejection: ${r instanceof Error ? r.message : String(r)}`)
+  })
+}
 
 export const SHARE_CACHE = 'fastbeam-share'
 
@@ -100,9 +113,11 @@ export function boot(): void {
     standalone: window.matchMedia('(display-mode: standalone)').matches,
     secure: window.isSecureContext,
   })
+  initErrorCapture()
   initSessionBroadcast()
   initTransferGuards()
   initDragAndPaste()
+  void cleanupOpfs().then(() => probeOpfs())
   void consumeShareTarget().then(() => consumePairLink())
   initDiscovery()
   if (import.meta.env.DEV) installDevHooks()

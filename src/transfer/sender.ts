@@ -1,7 +1,12 @@
 import { signal, type Signal } from '@preact/signals'
 import { BUFFER_HIGH, OFFER_TIMEOUT_MS, SEND_WINDOW, TEXT_MAX } from '../config'
 import type { PeerLink } from '../net/peerLink'
+import { logger } from '../state/log'
 import type { Peer } from '../state/peers'
+
+const L = logger('send')
+/** After the last chunk is queued, how long to wait for the receiver to confirm every byte. */
+const FINAL_ACK_WAIT_MS = 120_000
 import { SpeedMeter } from './speed'
 import {
   encodeChunk,
@@ -141,6 +146,7 @@ export class OutgoingTransfer {
       for (let i = 0; i < this.files.length; i++) {
         const file = this.files[i]!
         const meta = this.metas[i]!
+        L.debug(`file ${i + 1}/${this.files.length} starting: ${meta.name} (${meta.size} bytes)`)
         this.link.sendControl({ type: 'file-start', transferId: this.id, fileId: meta.fileId })
         let bytes = 0
         for await (const chunk of chunksOf(file, this.link.chunkSize)) {
@@ -156,16 +162,33 @@ export class OutgoingTransfer {
           this.schedulePublish()
         }
         this.link.sendControl({ type: 'file-end', transferId: this.id, fileId: meta.fileId, bytes })
+        L.debug(`file-end sent for ${meta.name}`, { queued: bytes, buffered: this.link.bufferedAmount })
       }
-      // Wait for the receiver to confirm the last bytes landed before saying done.
-      const t0 = Date.now()
-      while (this.acked < this.snap.value.sentBytes && !this.cancelled && Date.now() - t0 < 30_000) {
+      // Every byte is queued; the channel still has to drain and the receiver has to write to disk.
+      // Keep waiting while the receiver keeps acknowledging; give up only when acks stop for a long time.
+      L.info('all bytes queued, waiting for the receiver to confirm', {
+        unconfirmed: this.snap.value.sentBytes - this.acked,
+        buffered: this.link.bufferedAmount,
+      })
+      let lastProgressAt = Date.now()
+      let lastAcked = this.acked
+      while (this.acked < this.snap.value.sentBytes && !this.cancelled) {
         await new Promise<void>((resolve) => {
           this.ackWaiters.push(resolve)
           window.setTimeout(resolve, 1000)
         })
+        if (this.acked !== lastAcked) {
+          lastAcked = this.acked
+          lastProgressAt = Date.now()
+        } else if (Date.now() - lastProgressAt > FINAL_ACK_WAIT_MS) {
+          L.warn(`receiver stopped confirming for ${FINAL_ACK_WAIT_MS / 1000} s; marking done anyway`, {
+            unconfirmed: this.snap.value.sentBytes - this.acked,
+          })
+          break
+        }
       }
       if (this.cancelled) return
+      L.debug('receiver confirmed, sending done')
       this.link.sendControl({ type: 'done', transferId: this.id })
       window.clearTimeout(this.publishTimer)
       this.publishTimer = 0
@@ -180,6 +203,11 @@ export class OutgoingTransfer {
       })
     } catch (err) {
       if (this.cancelled) return
+      L.error(`send failed: ${err instanceof Error ? err.message : String(err)}`, {
+        sent: this.snap.value.sentBytes,
+        acked: this.acked,
+        dc: this.link.open ? 'open' : 'closed',
+      })
       this.patch({ state: 'failed', error: err instanceof Error ? err.message : String(err), finishedAt: Date.now() })
     }
   }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { lastProbe } from '../../net/discovery'
-import { deviceId, device } from '../../state/identity'
+import { copyDiagnostics, diagnosticsHeader } from '../../state/diagnostics'
+import { deviceId } from '../../state/identity'
 import { clearLogs, consoleOpen, formatLogLine, logs, type LogLevel } from '../../state/log'
 import { NAT_LABEL, nat } from '../../state/network'
 import { peers } from '../../state/peers'
@@ -10,6 +11,7 @@ import { IconButton } from './Controls'
 import { CloseIcon } from './Icons'
 
 const LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error']
+const RECENT = 80
 
 /** Docked status console for the curious: every discovery, link, pairing and transfer event, live. */
 export function Console() {
@@ -46,16 +48,12 @@ export function Console() {
   )
   const peerList = [...peers.value.values()]
   const probe = lastProbe.value
+  const errors = entries.filter((e) => e.level === 'error').length
+  const warns = entries.filter((e) => e.level === 'warn').length
 
-  const copy = async () => {
-    const header = [
-      `fastbeam ${__APP_VERSION__} · ${device.platform} · ${device.browser}`,
-      `device ${deviceId.value} "${deviceName.value}" · nat ${nat.value} · ipv4 ${probe?.ipv4 ?? '-'} · ipv6/64 ${probe?.ipv6Prefix ?? '-'}`,
-      `peers ${peerList.map((p) => `${p.name}(${p.online ? 'on' : 'off'},${p.links.length})`).join(' ') || 'none'}`,
-      '',
-    ].join('\n')
+  const copyShown = async () => {
     try {
-      await navigator.clipboard.writeText(header + shown.map(formatLogLine).join('\n'))
+      await navigator.clipboard.writeText([...diagnosticsHeader(), '', ...shown.map(formatLogLine)].join('\n'))
       toast(`Copied ${shown.length} lines`)
     } catch {
       toast('Couldn’t copy')
@@ -69,6 +67,8 @@ export function Console() {
         <span class="console-status">
           <b>{deviceName.value}</b> · {deviceId.value.slice(0, 8)} · nat {NAT_LABEL[nat.value].toLowerCase()} · v4 {probe?.ipv4 ?? '–'} · v6/64{' '}
           {probe?.ipv6Prefix ?? '–'} · peers {peerList.length} ({peerList.filter((p) => p.online).length} online)
+          {errors > 0 && <span class="console-count console-count--err"> · {errors} error{errors === 1 ? '' : 's'}</span>}
+          {warns > 0 && <span class="console-count console-count--warn"> · {warns} warning{warns === 1 ? '' : 's'}</span>}
         </span>
         <div class="console-tools">
           <input
@@ -94,8 +94,11 @@ export function Console() {
           <button type="button" class="console-btn" aria-pressed={paused} onClick={() => setPaused(!paused)}>
             {paused ? 'Resume' : 'Pause'}
           </button>
-          <button type="button" class="console-btn" onClick={() => void copy()}>
-            Copy
+          <button type="button" class="console-btn console-btn--accent" title={`Copy the last ${RECENT} lines with a device summary`} onClick={() => void copyDiagnostics(RECENT)}>
+            Copy recent
+          </button>
+          <button type="button" class="console-btn" title="Copy every line currently shown" onClick={() => void copyShown()}>
+            Copy all
           </button>
           <button type="button" class="console-btn" onClick={clearLogs}>
             Clear
