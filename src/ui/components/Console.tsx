@@ -12,6 +12,21 @@ import { CloseIcon } from './Icons'
 
 const LEVELS: LogLevel[] = ['debug', 'info', 'warn', 'error']
 const RECENT = 80
+const MIN_HEIGHT = 140
+const HEIGHT_KEY = 'fastbeam:consoleHeight'
+
+function readHeight(): number | null {
+  try {
+    const v = Number(localStorage.getItem(HEIGHT_KEY))
+    return Number.isFinite(v) && v >= MIN_HEIGHT ? v : null
+  } catch {
+    return null
+  }
+}
+
+function clampHeight(h: number): number {
+  return Math.max(MIN_HEIGHT, Math.min(Math.round(window.innerHeight * 0.92), Math.round(h)))
+}
 
 /** Docked status console for the curious: every discovery, link, pairing and transfer event, live. */
 export function Console() {
@@ -19,7 +34,51 @@ export function Console() {
   const [filter, setFilter] = useState('')
   const [minLevel, setMinLevel] = useState<LogLevel>('debug')
   const [paused, setPaused] = useState(false)
+  const [height, setHeight] = useState<number | null>(readHeight)
   const body = useRef<HTMLDivElement>(null)
+  const drag = useRef<{ startY: number; startH: number } | null>(null)
+
+  const onGripDown = (e: PointerEvent) => {
+    const panel = (e.currentTarget as HTMLElement).parentElement
+    if (!panel) return
+    drag.current = { startY: e.clientY, startH: panel.getBoundingClientRect().height }
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    e.preventDefault()
+  }
+  const onGripMove = (e: PointerEvent) => {
+    const d = drag.current
+    if (!d) return
+    // The panel is docked at the bottom, so dragging up makes it taller.
+    setHeight(clampHeight(d.startH + (d.startY - e.clientY)))
+  }
+  const onGripUp = () => {
+    if (!drag.current) return
+    drag.current = null
+    try {
+      if (height !== null) localStorage.setItem(HEIGHT_KEY, String(height))
+    } catch {
+      /* fine without persistence */
+    }
+  }
+  const resetHeight = () => {
+    setHeight(null)
+    try {
+      localStorage.removeItem(HEIGHT_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
+  const nudge = (delta: number) => {
+    const panel = document.querySelector<HTMLElement>('.console')
+    const cur = panel?.getBoundingClientRect().height ?? 300
+    const next = clampHeight(cur + delta)
+    setHeight(next)
+    try {
+      localStorage.setItem(HEIGHT_KEY, String(next))
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -61,7 +120,28 @@ export function Console() {
   }
 
   return (
-    <section class="console" aria-label="Status console">
+    <section class="console" aria-label="Status console" style={height !== null ? { height: `${height}px` } : undefined}>
+      <div
+        class="console-grip"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Resize console. Drag, or use the arrow keys."
+        tabIndex={0}
+        title="Drag to resize · double-click to reset"
+        onPointerDown={onGripDown}
+        onPointerMove={onGripMove}
+        onPointerUp={onGripUp}
+        onPointerCancel={onGripUp}
+        onDblClick={resetHeight}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowUp') nudge(40)
+          else if (e.key === 'ArrowDown') nudge(-40)
+          else return
+          e.preventDefault()
+        }}
+      >
+        <span />
+      </div>
       <header class="console-head">
         <span class="console-title mono">fastbeam console</span>
         <span class="console-status">

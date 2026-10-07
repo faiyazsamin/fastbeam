@@ -2062,11 +2062,43 @@ img.viewer-media {
   font-size: 12.5px;
 }
 
+/* Resize handle along the top edge: a 14px grab zone with a small pill in the middle. */
+.console-grip {
+  position: absolute;
+  top: -7px;
+  left: 0;
+  right: 0;
+  height: 14px;
+  cursor: ns-resize;
+  touch-action: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.console-grip span {
+  width: 56px;
+  height: 5px;
+  border-radius: 3px;
+  background: #24393b;
+  transition: background 120ms ease;
+}
+
+.console-grip:hover span,
+.console-grip:focus-visible span {
+  background: #4dd0cc;
+}
+
+.console-grip:focus-visible {
+  outline: 0;
+}
+
 .console-head {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 6px 8px 6px 14px;
+  padding: 10px 8px 6px 14px;
   border-bottom: 1px solid #24393b;
   flex: none;
   min-height: 44px;
