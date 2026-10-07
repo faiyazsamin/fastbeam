@@ -1,6 +1,7 @@
 import { signal, type Signal } from '@preact/signals'
 import { BLOB_WARN_BYTES, OFFER_TIMEOUT_MS, PROGRESS_EVERY } from '../config'
 import type { PeerLink } from '../net/peerLink'
+import { markAccepted } from '../state/autoAccept'
 import { logger } from '../state/log'
 import type { Peer } from '../state/peers'
 
@@ -104,17 +105,22 @@ export class IncomingTransfer {
     this.onSettled()
   }
 
-  /** Must run inside the Accept click so file pickers can open. */
-  async accept(): Promise<void> {
+  /**
+   * Must run inside the Accept click so file pickers can open, unless `sinkKind` names a sink that needs
+   * no gesture (auto-accept uses `chooseSinkKind({ gestureFree: true })`).
+   */
+  async accept(sinkKind?: SinkKind): Promise<void> {
     const s = this.snap.value
     if (s.state !== 'offered') return
     window.clearTimeout(this.offerTimer)
+    markAccepted(this.peer.deviceId)
     if (s.text !== null) {
       this.link.sendControl({ type: 'accept', transferId: this.id, fileIds: [] })
       this.settle({ state: 'done', receivedBytes: s.totalSize, startedAt: Date.now() })
       return
     }
-    const sink = createSink(s.sinkKind)
+    if (sinkKind && sinkKind !== s.sinkKind) this.patch({ sinkKind })
+    const sink = createSink(sinkKind ?? s.sinkKind)
     try {
       await sink.prepare(s.files)
     } catch (err) {

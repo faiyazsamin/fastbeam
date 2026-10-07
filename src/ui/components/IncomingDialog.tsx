@@ -3,6 +3,7 @@ import { OFFER_TIMEOUT_MS } from '../../config'
 import { getPeer } from '../../state/peers'
 import { incomingOffer } from '../../transfer/manager'
 import { formatBytes } from '../../transfer/protocol'
+import { AutoAcceptRow } from './AutoAcceptRow'
 import { Button } from './Controls'
 import { DeviceIcon, LockIcon, ShieldIcon } from './Icons'
 
@@ -98,6 +99,8 @@ export function IncomingDialog() {
             </>
           )}
         </div>
+
+        <AutoAcceptRow peerId={s.peerId} compact />
 
         {t.blobWarning && (
           <div class="alert alert--warn" role="note">

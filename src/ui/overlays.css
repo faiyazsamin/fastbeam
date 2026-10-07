@@ -1832,6 +1832,29 @@ dialog::backdrop {
   flex: 1;
 }
 
+/* ---------- Auto-accept row ---------- */
+
+.autorow {
+  min-height: 60px;
+  border-bottom: 0;
+}
+
+.autorow--compact {
+  padding: 8px 12px;
+  border-radius: 14px;
+  background: var(--ground);
+  min-height: 52px;
+}
+
+.autorow--compact .row-sub {
+  font-size: 12px;
+}
+
+/* An empty list card (peer never accepted yet) should not leave a hollow box behind. */
+.card--list:empty {
+  display: none;
+}
+
 /* ---------- Thumbnails ---------- */
 
 .thumb {

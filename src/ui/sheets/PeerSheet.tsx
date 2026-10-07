@@ -4,6 +4,7 @@ import { describeConnection, type ConnectionInfo } from '../../net/connection'
 import { getPeer, primaryLink } from '../../state/peers'
 import { toast } from '../../state/toast'
 import { closeSheet, openSendSheet } from '../../state/ui'
+import { AutoAcceptRow } from '../components/AutoAcceptRow'
 import { Button, IconButton } from '../components/Controls'
 import { CloseIcon, DeviceIcon, LockIcon, ShieldIcon } from '../components/Icons'
 import { Sheet } from '../components/Sheet'
@@ -116,6 +117,10 @@ export function PeerSheet({ peerId }: { peerId: string }) {
             </span>
           </div>
         </div>
+      </section>
+
+      <section class="card card--list">
+        <AutoAcceptRow peerId={peerId} />
       </section>
 
       <section class="card card--pad verify-card">

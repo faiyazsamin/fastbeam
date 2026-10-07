@@ -5,6 +5,7 @@ import { openSendSheet } from '../../state/ui'
 import { clearIncoming, clearOutgoing, incoming, outgoing } from '../../transfer/manager'
 import { formatBytes, formatDuration, formatEta } from '../../transfer/protocol'
 import type { SavedFile } from '../../transfer/sinks'
+import { AutoAcceptRow } from '../components/AutoAcceptRow'
 import { Button, IconButton } from '../components/Controls'
 import { CheckIcon, CloseIcon, ImageIcon, ShieldPlainIcon } from '../components/Icons'
 import { Thumb } from '../components/MediaViewer'
@@ -275,6 +276,11 @@ export function Done() {
           )
         })}
       </div>
+      {!isSend && (
+        <div class="card card--list">
+          <AutoAcceptRow peerId={snap.peerId} />
+        </div>
+      )}
       <div class="two-up screen-cta">
         <Button variant="secondary" class="btn--lg" disabled={!peer} onClick={again}>
           {isSend ? 'Send more' : 'Send back'}

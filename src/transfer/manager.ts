@@ -4,12 +4,14 @@
  */
 import { effect, signal } from '@preact/signals'
 import type { ControlMessage, PeerLink } from '../net/peerLink'
+import { isAutoAccept } from '../state/autoAccept'
 import { logger } from '../state/log'
 import type { Peer } from '../state/peers'
 import { toast } from '../state/toast'
 import { formatBytes, isTransferMessage, type OfferMessage } from './protocol'
 import { IncomingTransfer } from './receiver'
 import { OutgoingTransfer } from './sender'
+import { chooseSinkKind } from './sinks'
 
 const L = logger('transfer')
 
@@ -104,6 +106,16 @@ export function handleControl(peer: Peer, link: PeerLink, msg: ControlMessage): 
     )
     watchStates(`receive from ${peer.name}`, t)
     incoming.value = t
+    if (isAutoAccept(peer.deviceId)) {
+      // Session auto-accept: no dialog, and a sink that needs no click.
+      const kind = chooseSinkKind({ gestureFree: true })
+      const what = offer.text !== undefined ? 'text' : `${offer.files?.length ?? 0} file(s)`
+      L.info(`auto-accepting ${what} from ${peer.name}`, { sink: kind })
+      incomingOffer.value = null
+      toast(`Auto-accepting ${what} from ${peer.name}`)
+      void t.accept(kind)
+      return
+    }
     incomingOffer.value = t
     return
   }

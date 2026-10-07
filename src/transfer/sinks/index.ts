@@ -27,10 +27,11 @@ function forcedSink(): SinkKind | null {
  *   File System Access (Chromium desktop) → service-worker download (Chrome Android, Firefox)
  *   → private storage + disk-backed Save (Safari, iOS, anything with OPFS) → in-memory Blob.
  */
-export function chooseSinkKind(): SinkKind {
+export function chooseSinkKind(opts: { gestureFree?: boolean } = {}): SinkKind {
   const forced = forcedSink()
   if (forced) return forced
-  if (fsAccessSupported()) return 'fs'
+  // The File System Access pickers need a click, so auto-accepted transfers skip them.
+  if (!opts.gestureFree && fsAccessSupported()) return 'fs'
   if (!isIOS() && swStreamSupported()) return 'sw'
   if (opfsSupported()) return 'opfs'
   return 'blob'
