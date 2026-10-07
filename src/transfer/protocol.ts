@@ -137,10 +137,12 @@ export function formatDuration(ms: number): string {
 
 export function formatEta(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '…'
-  if (seconds < 5) return 'a few seconds'
-  if (seconds < 60) return `about ${Math.round(seconds)} s`
+  if (seconds < 5) return '~5 s'
+  if (seconds < 60) return `~${Math.round(seconds)} s`
   const m = Math.round(seconds / 60)
-  return m === 1 ? 'about 1 min' : `about ${m} min`
+  if (m < 60) return `~${m} min`
+  const h = Math.floor(m / 60)
+  return `~${h} h ${m % 60} min`
 }
 
 /** SHA-256 over the two DTLS fingerprints in sorted order; first six digits, shown as "482 019". */

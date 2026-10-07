@@ -2178,19 +2178,19 @@ img.viewer-media {
     flex: 1;
     min-width: 100px;
   }
-  .console-line {
-    grid-template-columns: 1fr;
-    gap: 0;
+  .console .console-line {
+    display: block;
     padding: 4px 12px;
     border-bottom: 1px solid #122023;
   }
-  .console-t::after {
-    content: ' ';
-  }
-  .console-lvl,
-  .console-scope {
+  .console .console-t,
+  .console .console-lvl,
+  .console .console-scope {
     display: inline;
     margin-right: 8px;
+  }
+  .console .console-msg {
+    display: inline;
   }
 }
 
