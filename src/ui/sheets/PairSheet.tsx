@@ -17,7 +17,7 @@ import { closeSheet, hasPending, openSendSheet, type PairTab } from '../../state
 import type { Peer } from '../../state/peers'
 import { Button, IconButton, Switch } from '../components/Controls'
 import { CodeBoxes } from '../components/CodeBoxes'
-import { BackIcon, LockIcon, PasteIcon, ShareIcon } from '../components/Icons'
+import { BackIcon, CopyIcon, LockIcon, PasteIcon, ShareIcon } from '../components/Icons'
 import { QrCode } from '../components/QrCode'
 import { Scanner } from '../components/Scanner'
 import { Tabs } from '../components/Sheet'
@@ -95,24 +95,26 @@ export function ShowCode() {
     <>
       <section class="card showcode">
         <QrCode value={pairLink(h.code)} />
-        <button
-          type="button"
-          class="bigcode bigcode--btn mono"
-          aria-label={`Code ${h.code.split('').join(' ')}`}
-          title="Tap to copy the code"
-          onClick={() => void copyCode(h.code)}
-        >
-          {h.code.slice(0, 3)}
-          <span class="bigcode-dot">·</span>
-          {h.code.slice(3)}
-        </button>
+        <div class="code-row">
+          <button
+            type="button"
+            class="bigcode bigcode--btn mono"
+            aria-label={`Code ${h.code.split('').join(' ')}`}
+            title="Tap to copy the code"
+            onClick={() => void copyCode(h.code)}
+          >
+            {h.code.slice(0, 3)}
+            <span class="bigcode-dot">·</span>
+            {h.code.slice(3)}
+          </button>
+          <IconButton label="Copy code" class="code-copy" onClick={() => void copyCode(h.code)}>
+            <CopyIcon size={20} />
+          </IconButton>
+        </div>
         <div class="row-sub">fastbeam.app/#{h.code}</div>
-        <div class="three-up three-up--tight">
-          <Button variant="secondary" class="btn--md" onClick={() => void copyCode(h.code)}>
-            Copy code
-          </Button>
+        <div class="two-up">
           <Button variant="secondary" class="btn--md" onClick={() => void copyLink(h.code)}>
-            Copy link
+            <CopyIcon /> Copy link
           </Button>
           {canShare ? (
             <Button variant="primary" class="btn--md" onClick={() => void shareLink(h.code)}>

@@ -909,13 +909,23 @@
   background: var(--tint);
 }
 
-.three-up--tight {
-  gap: 8px;
+.code-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
 }
 
-.three-up--tight .btn {
-  padding: 0 10px;
-  font-size: 14px;
+.code-row--panel {
+  justify-content: flex-start;
+}
+
+.code-copy {
+  color: var(--muted);
+}
+
+.code-copy:hover {
+  color: var(--link);
 }
 
 .bigcode-dot {

@@ -1,7 +1,8 @@
 import { useState } from 'preact/hooks'
 import { codeFromText, host, isValidCode, joinWithCode, normalizeCodeInput } from '../../net/pairing'
 import { hasPending, openPairSheet } from '../../state/ui'
-import { Button } from './Controls'
+import { Button, IconButton } from './Controls'
+import { CopyIcon } from './Icons'
 import { copyCode, copyLink, onPairedDefault, useHosting } from '../sheets/PairSheet'
 
 /** Screen 13's side panel: the code is always on show on desktop; QR and password open the full sheet. */
@@ -21,28 +22,30 @@ export function PairPanel() {
       <div class="pair-entry-title">Not on the same Wi‑Fi?</div>
       <div class="pair-panel-block">
         <div class="row-sub">Your code</div>
-        <button
-          type="button"
-          class="panelcode panelcode--btn mono"
-          aria-label={h ? `Code ${h.code.split('').join(' ')}` : 'Getting a code'}
-          title="Click to copy the code"
-          disabled={!h}
-          onClick={() => h && void copyCode(h.code)}
-        >
-          {h ? (
-            <>
-              {h.code.slice(0, 3)}
-              <span class="bigcode-dot">·</span>
-              {h.code.slice(3)}
-            </>
-          ) : (
-            '···  ···'
-          )}
-        </button>
+        <div class="code-row code-row--panel">
+          <button
+            type="button"
+            class="panelcode panelcode--btn mono"
+            aria-label={h ? `Code ${h.code.split('').join(' ')}` : 'Getting a code'}
+            title="Click to copy the code"
+            disabled={!h}
+            onClick={() => h && void copyCode(h.code)}
+          >
+            {h ? (
+              <>
+                {h.code.slice(0, 3)}
+                <span class="bigcode-dot">·</span>
+                {h.code.slice(3)}
+              </>
+            ) : (
+              '···  ···'
+            )}
+          </button>
+          <IconButton label="Copy code" class="code-copy" disabled={!h} onClick={() => h && void copyCode(h.code)}>
+            <CopyIcon size={18} />
+          </IconButton>
+        </div>
         <div class="pair-panel-actions">
-          <Button variant="secondary" class="btn--sm" disabled={!h} onClick={() => h && void copyCode(h.code)}>
-            Copy code
-          </Button>
           <Button variant="secondary" class="btn--sm" disabled={!h} onClick={() => h && void copyLink(h.code)}>
             Copy link
           </Button>
