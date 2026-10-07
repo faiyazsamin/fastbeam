@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks'
 import { codeFromText, host, isValidCode, joinWithCode, normalizeCodeInput } from '../../net/pairing'
 import { hasPending, openPairSheet } from '../../state/ui'
 import { Button } from './Controls'
-import { copyLink, onPairedDefault, useHosting } from '../sheets/PairSheet'
+import { copyCode, copyLink, onPairedDefault, useHosting } from '../sheets/PairSheet'
 
 /** Screen 13's side panel: the code is always on show on desktop; QR and password open the full sheet. */
 export function PairPanel() {
@@ -21,7 +21,14 @@ export function PairPanel() {
       <div class="pair-entry-title">Not on the same Wi‑Fi?</div>
       <div class="pair-panel-block">
         <div class="row-sub">Your code</div>
-        <div class="panelcode mono" aria-label={h ? `Code ${h.code.split('').join(' ')}` : 'Getting a code'}>
+        <button
+          type="button"
+          class="panelcode panelcode--btn mono"
+          aria-label={h ? `Code ${h.code.split('').join(' ')}` : 'Getting a code'}
+          title="Click to copy the code"
+          disabled={!h}
+          onClick={() => h && void copyCode(h.code)}
+        >
           {h ? (
             <>
               {h.code.slice(0, 3)}
@@ -31,8 +38,11 @@ export function PairPanel() {
           ) : (
             '···  ···'
           )}
-        </div>
+        </button>
         <div class="pair-panel-actions">
+          <Button variant="secondary" class="btn--sm" disabled={!h} onClick={() => h && void copyCode(h.code)}>
+            Copy code
+          </Button>
           <Button variant="secondary" class="btn--sm" disabled={!h} onClick={() => h && void copyLink(h.code)}>
             Copy link
           </Button>

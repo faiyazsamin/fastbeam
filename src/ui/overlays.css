@@ -896,6 +896,28 @@
   line-height: 1;
 }
 
+.bigcode--btn,
+.panelcode--btn {
+  border-radius: 12px;
+  padding: 2px 10px;
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.bigcode--btn:hover,
+.panelcode--btn:hover {
+  background: var(--tint);
+}
+
+.three-up--tight {
+  gap: 8px;
+}
+
+.three-up--tight .btn {
+  padding: 0 10px;
+  font-size: 14px;
+}
+
 .bigcode-dot {
   color: color-mix(in srgb, var(--muted) 60%, var(--line));
 }

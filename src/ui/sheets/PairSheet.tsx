@@ -17,7 +17,7 @@ import { closeSheet, hasPending, openSendSheet, type PairTab } from '../../state
 import type { Peer } from '../../state/peers'
 import { Button, IconButton, Switch } from '../components/Controls'
 import { CodeBoxes } from '../components/CodeBoxes'
-import { BackIcon, CopyIcon, LockIcon, PasteIcon, ShareIcon } from '../components/Icons'
+import { BackIcon, LockIcon, PasteIcon, ShareIcon } from '../components/Icons'
 import { QrCode } from '../components/QrCode'
 import { Scanner } from '../components/Scanner'
 import { Tabs } from '../components/Sheet'
@@ -57,6 +57,15 @@ function useCountdown(expiresAt: number | undefined): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
+export async function copyCode(code: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(code)
+    toast(`Code ${formatCode(code)} copied`)
+  } catch {
+    toast('Couldn\u2019t copy the code')
+  }
+}
+
 export async function copyLink(code: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(pairLink(code))
@@ -86,15 +95,24 @@ export function ShowCode() {
     <>
       <section class="card showcode">
         <QrCode value={pairLink(h.code)} />
-        <div class="bigcode mono" aria-label={`Code ${h.code.split('').join(' ')}`}>
+        <button
+          type="button"
+          class="bigcode bigcode--btn mono"
+          aria-label={`Code ${h.code.split('').join(' ')}`}
+          title="Tap to copy the code"
+          onClick={() => void copyCode(h.code)}
+        >
           {h.code.slice(0, 3)}
           <span class="bigcode-dot">·</span>
           {h.code.slice(3)}
-        </div>
+        </button>
         <div class="row-sub">fastbeam.app/#{h.code}</div>
-        <div class="two-up">
+        <div class="three-up three-up--tight">
+          <Button variant="secondary" class="btn--md" onClick={() => void copyCode(h.code)}>
+            Copy code
+          </Button>
           <Button variant="secondary" class="btn--md" onClick={() => void copyLink(h.code)}>
-            <CopyIcon /> Copy link
+            Copy link
           </Button>
           {canShare ? (
             <Button variant="primary" class="btn--md" onClick={() => void shareLink(h.code)}>
